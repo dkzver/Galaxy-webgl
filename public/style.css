@@ -1,0 +1,116 @@
+:root {
+  --hud: rgba(222, 236, 255, 0.92);
+  --hud-dim: rgba(150, 175, 210, 0.65);
+  --accent: #ff8a3d;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #03040a;
+  overflow: hidden;
+  color: var(--hud);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: none;
+}
+
+/* Хост HUD: слои лежат как обычные блоки страницы — от левого верхнего края.
+   Вид и поток самих слоёв — в hud/style.css сцены. */
+#scene-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 0px 0px;
+  pointer-events: none;
+  z-index: 6;
+}
+
+body.paused #scene { cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
+
+/* Отладочные счётчики физики (F3) */
+
+#physics-stats {
+  position: fixed;
+  left: 34px;
+  top: 128px;
+  padding: 9px 12px;
+  border-left: 1px solid rgba(110, 180, 255, 0.4);
+  background: linear-gradient(90deg, rgba(8, 16, 30, 0.6), rgba(8, 16, 30, 0));
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 10px;
+  line-height: 1.75;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(150, 205, 255, 0.8);
+  white-space: pre-line;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 6;
+}
+
+#physics-stats.open {
+  opacity: 1;
+  transform: none;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 45%, #0a1020 0%, #03040a 65%);
+  transition: opacity 0.7s ease;
+  z-index: 10;
+}
+
+#overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Загрузочный экран движка: заглушка, если ассет сцены не загрузился */
+.loading-fallback { text-align: center; }
+
+.loading-fallback-brand {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--hud);
+  margin-bottom: 14px;
+}
+
+.loading-fallback-brand span { color: var(--accent); margin-left: 0.18em; }
+
+#overlay-text {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+}
+
+#overlay-text.error {
+  color: #ff7a7a;
+  max-width: 60ch;
+  line-height: 1.7;
+  letter-spacing: 0.08em;
+  text-transform: none;
+}

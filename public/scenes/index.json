@@ -1,0 +1,9 @@
+{
+  "scenes": [
+    {
+      "id": "first-game",
+      "title": "Первая игра",
+      "description": "Первая игра"
+    }
+  ]
+}

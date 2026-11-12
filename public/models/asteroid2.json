@@ -1,0 +1,31 @@
+{
+  "name": "asteroid2",
+  "bounds": {
+    "min": [
+      -7,
+      -5.656,
+      -3.197
+    ],
+    "max": [
+      7,
+      5.656,
+      3.197
+    ]
+  },
+  "radius": 8.04,
+  "groups": [
+    {
+      "name": "asteroid2",
+      "texture": "asteroid2",
+      "color": "#7c828a",
+      "metal": 0.15,
+      "specular": 0.6,
+      "vertexCount": 15615,
+      "indexCount": 15810,
+      "positionByteOffset": 0,
+      "normalByteOffset": 187380,
+      "uvByteOffset": 374760,
+      "indexByteOffset": 499680
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "name": "rocket",
+  "length": 3.18,
+  "bounds": {
+    "min": [
+      -0.7425,
+      -0.446,
+      -1.87
+    ],
+    "max": [
+      0.7425,
+      0.84,
+      1.31
+    ]
+  },
+  "radius": 1.871,
+  "groups": [
+    {
+      "name": "rocket-body",
+      "texture": null,
+      "color": "#949aa3",
+      "metal": 0.7,
+      "specular": 1.1,
+      "vertexCount": 168,
+      "indexCount": 168,
+      "positionByteOffset": 0,
+      "normalByteOffset": 2016,
+      "uvByteOffset": 4032,
+      "indexByteOffset": 5376
+    },
+    {
+      "name": "rocket-nose",
+      "texture": null,
+      "color": "#cc3d29",
+      "metal": 0.4,
+      "specular": 1.2,
+      "vertexCount": 36,
+      "indexCount": 36,
+      "positionByteOffset": 5712,
+      "normalByteOffset": 6144,
+      "uvByteOffset": 6576,
+      "indexByteOffset": 6864
+    },
+    {
+      "name": "rocket-fins",
+      "texture": null,
+      "color": "#4d525c",
+      "metal": 0.8,
+      "specular": 0.8,
+      "vertexCount": 108,
+      "indexCount": 108,
+      "positionByteOffset": 6936,
+      "normalByteOffset": 8232,
+      "uvByteOffset": 9528,
+      "indexByteOffset": 10392
+    },
+    {
+      "name": "rocket-nozzle",
+      "texture": null,
+      "color": "#292b30",
+      "metal": 0.9,
+      "specular": 0.6,
+      "vertexCount": 144,
+      "indexCount": 144,
+      "positionByteOffset": 10608,
+      "normalByteOffset": 12336,
+      "uvByteOffset": 14064,
+      "indexByteOffset": 15216
+    }
+  ]
+}

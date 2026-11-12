@@ -1,0 +1,52 @@
+{
+  "name": "sample-crate",
+  "length": 2,
+  "bounds": {
+    "min": [
+      -1,
+      0,
+      -1
+    ],
+    "max": [
+      1,
+      1.9500000476837158,
+      1
+    ]
+  },
+  "radius": 1,
+  "textureColor": true,
+  "textureMaps": [
+    "base"
+  ],
+  "groups": [
+    {
+      "name": "Crate",
+      "texture": null,
+      "color": "#6b7380",
+      "metal": 0.65,
+      "specular": 0.95,
+      "vertexCount": 24,
+      "indexCount": 36,
+      "positionByteOffset": 0,
+      "normalByteOffset": 288,
+      "uvByteOffset": 576,
+      "indexByteOffset": 768
+    },
+    {
+      "name": "Crate 1",
+      "texture": null,
+      "color": "#2699cc",
+      "metal": 0.1,
+      "specular": 1.0999999999999999,
+      "vertexCount": 24,
+      "indexCount": 36,
+      "positionByteOffset": 840,
+      "normalByteOffset": 1128,
+      "uvByteOffset": 1416,
+      "indexByteOffset": 1608,
+      "glow": "#1a8cbf",
+      "glowIntensity": 1
+    }
+  ],
+  "bytes": 1680
+}

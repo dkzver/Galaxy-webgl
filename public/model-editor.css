@@ -1,0 +1,274 @@
+/* Окно редактора модели: предпросмотр, габариты, физика по умолчанию */
+
+[hidden] { display: none !important; }
+
+.model-editor {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.model-body {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(240px, 300px) minmax(300px, 380px);
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+}
+
+/* Панель физики прокручивается внутри себя, чтобы не тянуть всю страницу */
+.physics-card {
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #2b3d55 transparent;
+}
+
+.physics-card::-webkit-scrollbar { width: 8px; }
+
+.physics-card::-webkit-scrollbar-thumb {
+  background: #2b3d55;
+  border-radius: 4px;
+}
+
+.physics-card::-webkit-scrollbar-track { background: transparent; }
+
+.card h4 {
+  margin: 6px 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.card h4:first-child { margin-top: 0; }
+
+.preview-wrap {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #0b1524 0%, #050a12 70%);
+  border: 1px solid rgba(90, 140, 200, 0.16);
+}
+
+#preview {
+  display: block;
+  width: 100%;
+  height: 420px;
+  cursor: grab;
+}
+
+#preview:active { cursor: grabbing; }
+
+.summary { font-size: 12px; }
+
+.summary .line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(30, 42, 60, 0.7);
+}
+
+.summary .line span:last-child {
+  color: #cfe3ff;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  word-break: break-word;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0a111b;
+  color: var(--text);
+  font: inherit;
+}
+
+.field input:disabled,
+.field select:disabled { opacity: 0.55; }
+
+.trio { display: flex; gap: 6px; }
+.trio input { width: 100%; }
+
+.collider-state {
+  margin: 2px 0 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #cfe3ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.collider-state.warn { color: var(--danger); }
+.collider-state.ok { color: #7fbf8f; }
+
+.fit-stats {
+  margin: 2px 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------- Составной коллайдер --------------------------- */
+
+.compound {
+  margin: 2px 0 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(30, 42, 60, 0.9);
+}
+
+.compound-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.compound-count {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.compound-actions { display: flex; gap: 4px; }
+
+.compound-actions button,
+.part-editor-actions button {
+  padding: 3px 6px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.parts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 168px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #2b3d55 transparent;
+  margin-bottom: 8px;
+}
+
+.parts-list::-webkit-scrollbar { width: 8px; }
+.parts-list::-webkit-scrollbar-thumb { background: #2b3d55; border-radius: 4px; }
+
+.part {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #0a111b;
+  color: var(--text);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.part:hover { border-color: #2f425c; }
+
+.part.active {
+  border-color: #e0a94a;
+  background: rgba(224, 169, 74, 0.12);
+}
+
+.part-ico { color: #7fbf8f; text-align: center; }
+.part.active .part-ico { color: #ffb84d; }
+.part-name { color: #cfe3ff; }
+
+.part-size {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.parts-empty {
+  margin: 0;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.part-editor {
+  margin-top: 4px;
+  padding: 8px 8px 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(10, 17, 27, 0.6);
+}
+
+.part-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.part-editor-head b { color: #ffd18a; font-weight: 600; }
+.part-editor-actions { display: flex; gap: 4px; }
+
+.part-editor-actions .danger { color: #ff8b80; }
+.part-editor-actions .danger:hover { border-color: var(--danger); }
+
+.field.compact { grid-template-columns: 82px 1fr; gap: 8px; margin-bottom: 8px; }
+.field.compact input { padding: 4px 6px; font-size: 11px; }
+
+.fit-actions {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.fit-actions button { flex: 1; padding: 6px 8px; font-size: 11px; }
+
+.field input[type="range"] {
+  padding: 0;
+  accent-color: #e0a94a;
+}
+
+.field b { color: #cfe3ff; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1100px) {
+  .model-body { grid-template-columns: 1fr 1fr; }
+  .preview-card { grid-column: 1 / -1; }
+}
+
+@media (max-width: 760px) {
+  .model-body { grid-template-columns: 1fr; }
+  .preview-card { grid-column: auto; }
+}

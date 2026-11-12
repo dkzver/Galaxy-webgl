@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "id": "orbital-station",
+  "title": "orbital-station",
+  "entities": [
+    {
+      "id": "empty-1",
+      "type": "empty",
+      "name": "Пустой",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "children": [
+        {
+          "id": "orbital-station-1",
+          "type": "model",
+          "name": "orbital-station",
+          "asset": "orbital-station",
+          "position": [
+            0,
+            0,
+            -130
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "body": {
+            "kind": "static",
+            "collider": {
+              "shape": "sphere",
+              "radius": 615
+            }
+          },
+          "visible": true,
+          "scripts": [
+            {
+              "file": "station.js",
+              "params": {
+                "name": "Орбитальная станция «Ковчег»"
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "hud-station-label",
+              "type": "hud",
+              "name": "Название станции",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "hud": {
+                "file": "hud/station-name.html",
+                "follow": "parent",
+                "target": null,
+                "offset": [
+                  0,
+                  -70
+                ],
+                "anchor": "center",
+                "scale": 1,
+                "bind": null,
+                "startHidden": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "hud-1",
+          "type": "hud",
+          "name": "HUD",
+          "position": [
+            50,
+            10,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "hud": {
+            "file": "hud/keys.html",
+            "follow": "none",
+            "offset": [
+              0,
+              0
+            ],
+            "anchor": "top-left",
+            "scale": 1,
+            "bind": null
+          }
+        }
+      ]
+    }
+  ]
+}

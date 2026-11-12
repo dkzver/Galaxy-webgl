@@ -1,0 +1,26 @@
+{
+  "id": "impact-spark",
+  "title": "Искры удара",
+  "description": "Короткая вспышка искр в точке попадания или столкновения.",
+  "duration": 0.35,
+  "loop": false,
+  "params": {
+    "color": { "type": "color", "label": "Цвет", "default": "#ffb066" },
+    "count": { "type": "number", "label": "Искр", "default": 10, "min": 1, "max": 32, "step": 1 },
+    "size": { "type": "number", "label": "Размер", "default": 0.45, "min": 0.05, "max": 5, "step": 0.05 },
+    "spread": { "type": "number", "label": "Разброс, м", "default": 0.6, "min": 0, "max": 10, "step": 0.1 },
+    "life": { "type": "number", "label": "Жизнь, с", "default": 0.25, "min": 0.05, "max": 3, "step": 0.05 }
+  },
+  "layers": [
+    {
+      "type": "spark",
+      "params": {
+        "color": "#ffb066",
+        "count": 10,
+        "size": 0.45,
+        "spread": 0.6,
+        "life": 0.25
+      }
+    }
+  ]
+}

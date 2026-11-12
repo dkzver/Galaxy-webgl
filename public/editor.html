@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GalaxyDemo — редактор сцен</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<div class="editor">
+  <header class="bar editor-header">
+    <div class="brand">GALAXY <span>EDITOR</span></div>
+    <span id="mode-title" class="mode-title"></span>
+
+    <div class="bar-group">
+      <select id="scene-select" aria-label="Сцена"></select>
+      <button id="btn-load" type="button" title="Перечитать файл сцены">Загрузить</button>
+      <button id="btn-save" type="button" class="primary" title="Ctrl+S">Сохранить</button>
+      <button id="btn-restore" type="button" title="Вернуть предыдущую версию файла">Откат</button>
+      <span id="save-state" class="save-state">без изменений</span>
+      <label class="toggle" title="Сохранять автоматически через 1.5 с после правки"><input id="chk-autosave" type="checkbox"> авто</label>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="bar-group prefab-picker">
+      <select id="prefab-select" class="asset-select" aria-label="Префабы"></select>
+      <button id="btn-prefab-edit" type="button" title="Открыть выбранный префаб в отдельном окне">Редактировать префаб</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="bar-group">
+      <button id="btn-empty" type="button" title="Добавить пустой объект — группу для моделей и скриптов">+ Пустой</button>
+      <button id="btn-camera" type="button" title="Добавить камеру — объект сцены с углом обзора">+ Камера</button>
+      <button id="btn-hud" type="button" title="Добавить слой интерфейса из public/hud">+ HUD</button>
+      <button id="btn-trigger" type="button" title="Добавить триггер">+ Триггер</button>
+      <button id="btn-effect" type="button" title="Добавить узел эффекта">+ Эффект</button>
+    </div>
+
+    <div class="bar-group">
+      <select id="asset-select" class="asset-select" aria-label="Модель из public/models"></select>
+      <button id="btn-model" type="button" title="Добавить модель из public/models">+ Модель</button>
+      <button id="btn-model-edit" type="button" title="Открыть редактор выбранной модели: тип, масса, коллайдер">Редактировать модель</button>
+      <button id="btn-import" type="button" title="Импортировать модель .glb">Импорт GLB</button>
+      <input id="glb-input" type="file" accept=".glb,model/gltf-binary" class="sr-only" tabindex="-1">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="bar-group">
+      <button id="btn-prefab-save" type="button" title="Сохранить выбранный объект вместе с детьми как префаб">В префаб</button>
+      <button id="btn-prefab-insert" type="button" title="Вставить префаб в точку камеры">Вставить</button>
+      <button id="btn-prefab-delete" type="button" class="icon-btn" title="Удалить префаб">×</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="bar-group">
+      <button id="btn-duplicate" type="button" title="Ctrl+D">Дублировать</button>
+      <button id="btn-delete" type="button" title="Delete">Удалить</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="bar-group">
+      <label class="toggle"><input id="chk-grid" type="checkbox" checked> сетка</label>
+      <label class="toggle"><input id="chk-colliders" type="checkbox" checked> коллайдеры</label>
+    </div>
+
+    <a id="play-link" class="play" href="/?scene=open-space" target="_blank" rel="noopener">Играть ↗</a>
+  </header>
+
+  <aside class="panel tree-panel editor-left">
+    <div class="panel-head">Сцена</div>
+    <div id="tree" class="tree"></div>
+  </aside>
+
+  <main class="viewport editor-center">
+    <canvas id="view"></canvas>
+    <div id="context-menu" class="context-menu" hidden></div>
+    <iframe id="hud-preview" class="hud-preview" title="HUD сцены" aria-hidden="true"></iframe>
+
+    <div class="modes" role="radiogroup" aria-label="Режим гизмо">
+      <label class="mode" title="Перемещение (G)"><input type="radio" name="gizmo" value="move" checked><span>Перемещение</span></label>
+      <label class="mode" title="Вращение (R)"><input type="radio" name="gizmo" value="rotate"><span>Вращение</span></label>
+      <label class="mode" title="Масштаб (S)"><input type="radio" name="gizmo" value="scale"><span>Масштаб</span></label>
+    </div>
+    <div id="hint" class="hint">Режим: G — перемещение, R — вращение, S — масштаб · в каждом режиме мышь делает только своё · ЛКМ по пустому — камера · колесо — зум · строку в дереве можно перетащить внутрь «Пустого»</div>
+  </main>
+
+  <aside class="panel inspector-panel editor-right">
+    <div class="panel-head">Инспектор</div>
+    <div id="inspector" class="inspector">
+      <p class="empty">Ничего не выбрано</p>
+    </div>
+  </aside>
+
+  <footer class="status editor-status">
+    <span id="status">Готово</span>
+    <span id="stats" class="muted"></span>
+    <span id="camera-state" class="muted"></span>
+  </footer>
+</div>
+
+<div id="prefab-dialog" class="dialog-backdrop" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="Вставить префаб">
+    <div class="dialog-head">
+      <span>Вставить префаб</span>
+      <button id="prefab-dialog-close" type="button" class="icon-btn" title="Закрыть">×</button>
+    </div>
+    <select id="prefab-dialog-select" aria-label="Выбор префаба"></select>
+    <div class="dialog-actions">
+      <button id="prefab-dialog-cancel" type="button">Отмена</button>
+      <button id="prefab-dialog-insert" type="button" class="primary">Вставить</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/editor/editor.js"></script>
+</body>
+</html>

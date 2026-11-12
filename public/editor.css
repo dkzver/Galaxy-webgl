@@ -1,0 +1,595 @@
+:root {
+  --bg: #070b12;
+  --panel: #0d141f;
+  --panel-2: #121b29;
+  --line: #1e2a3c;
+  --text: #cfd8e3;
+  --muted: #7d8b9c;
+  --accent: #ff8a3d;
+  --accent-dim: #a1562a;
+  --blue: #4fd2ff;
+  --danger: #ff5a4d;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: minmax(150px, 230px) minmax(200px, 1fr) minmax(190px, 290px);
+  grid-template-rows: auto minmax(0, 1fr) 30px;
+  grid-template-areas:
+    "bar bar bar"
+    "tree view inspector"
+    "status status status";
+  height: 100vh;
+
+  /* Мышь в редакторе тянет гизмо и строки дерева, а не выделяет текст */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* В полях значения должны выделяться и копироваться как обычно */
+.editor input,
+.editor textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ------------------------------- Верхняя панель --------------------------- */
+
+.bar {
+  grid-area: bar;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-height: 46px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.brand span { color: var(--accent); }
+
+.bar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.bar .divider {
+  width: 1px;
+  height: 22px;
+  background: var(--line);
+  margin: 0 4px;
+}
+
+.bar .spacer { flex: 1; }
+
+/* «Играть» прижимается вправо и переносится вместе с собой, если не влезло */
+.bar .play { margin-left: auto; }
+
+.save-state {
+  font-size: 11.5px;
+  color: var(--muted);
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.save-state.dirty { color: var(--accent); }
+.save-state.saving { color: var(--blue); }
+.save-state.saved { color: #7fbf8f; }
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.modes {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0a111b;
+}
+
+/* Во вьюпорте блок виден при любой ширине окна, в отличие от панели */
+.viewport .modes {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 4;
+  max-width: calc(100% - 24px);
+  flex-wrap: wrap;
+  background: rgba(10, 17, 27, 0.94);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.mode {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: #0e1622;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px #1b2534;
+}
+
+.mode input { display: none; }
+.mode:hover { color: var(--text); }
+.mode:has(input:checked) { background: #2a1a10; color: #ffd9bd; box-shadow: inset 0 0 0 1px var(--accent-dim); }
+
+.asset-select {
+  max-width: 150px;
+  padding: 5px 6px;
+}
+
+button, select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover, select:hover { border-color: #2f425c; }
+
+button.primary {
+  border-color: var(--accent-dim);
+  color: #ffd9bd;
+  background: #2a1a10;
+}
+
+button.primary:hover { border-color: var(--accent); }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input { accent-color: var(--accent); }
+
+.play {
+  color: var(--blue);
+  text-decoration: none;
+  border: 1px solid #1d3a4d;
+  border-radius: 5px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.play:hover { border-color: var(--blue); }
+
+/* --------------------------------- Панели -------------------------------- */
+
+.panel {
+  background: var(--panel);
+  overflow: auto;
+}
+
+.tree-panel { grid-area: tree; border-right: 1px solid var(--line); overflow-x: hidden; }
+.inspector-panel { grid-area: inspector; border-left: 1px solid var(--line); }
+
+.panel-head {
+  position: sticky;
+  top: 0;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+}
+
+/* ------------------------------ Дерево сцены ----------------------------- */
+
+.tree { padding: 6px 0 20px; }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.tree-row:hover { background: #101a27; }
+
+/* Корень сцены: всегда первая строка, без кнопок удаления */
+.tree-row.scene-row { font-weight: 600; border-bottom: 1px solid #16212e; }
+.tree-row.scene-row .icon { color: var(--accent); }
+.tree-row.scene-row .kind { color: var(--accent-dim); }
+
+.tree-row.player .icon { color: var(--blue); }
+.tree-row.player .kind { color: var(--blue); }
+
+.tree-row.selected {
+  background: #1a2432;
+  border-left-color: var(--accent);
+}
+
+.tree-row .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.tree-row .icon {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  width: 12px;
+  text-align: center;
+}
+
+.tree-row .kind {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.tree-row.dragging { opacity: 0.45; }
+
+/* Куда встанет объект: внутрь пустого или следом за строкой */
+.tree-row.drop-into {
+  background: #14324a;
+  outline: 1px dashed var(--blue);
+  outline-offset: -1px;
+}
+
+.tree-row.drop-after { border-bottom: 1px solid var(--blue); }
+
+.tree.drop-root { background: #0c141f; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* -------------------------------- Вьюпорт -------------------------------- */
+
+.viewport {
+  grid-area: view;
+  position: relative;
+  min-width: 0;
+  background: #05070c;
+}
+
+#view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 1px;
+  cursor: crosshair;
+}
+
+/* На узком окне панели ужимаются, чтобы вьюпорт не исчезал */
+@media (max-width: 1100px) {
+  .editor { grid-template-columns: 150px minmax(140px, 1fr) 190px; }
+  .bar { gap: 5px; padding: 0 6px; }
+  .bar button { padding: 5px 7px; }
+  .brand { font-size: 11px; }
+}
+
+/* Каркас редактора: шапка, левый бар (дерево), центр (вьюпорт + HUD),
+   правый бар (инспектор) и строка статуса. */
+.editor-header { grid-area: bar; }
+.editor-left { grid-area: tree; }
+.editor-center { grid-area: view; }
+.editor-right { grid-area: inspector; }
+.editor-status { grid-area: status; }
+
+.hud-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Слои внутри фрейма HUD: стили сцены не выходят за пределы iframe */
+.hud-preview .hud-layer-preview {
+  color: #cfe3ff;
+}
+
+.hud-preview .hud-layer-preview .brand { font-size: 13px; letter-spacing: 0.34em; font-weight: 600; }
+.hud-preview .hud-layer-preview .brand span { color: #ff8a3d; }
+.hud-preview .hud-layer-preview .model { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #7d8b9c; }
+.hud-preview .hud-layer-preview .hint { position: static; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(150, 175, 210, 0.42); }
+.hud-preview .hud-layer-preview .hud-keys { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.hud-preview .hud-layer-preview .key { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.16em; color: #7d8b9c; white-space: nowrap; }
+.hud-preview .hud-layer-preview kbd { border: 1px solid #26384f; border-radius: 4px; padding: 2px 6px; font-size: 9px; color: #cfe3ff; }
+.hud-preview .hud-layer-preview.is-hidden { opacity: 0.3; outline: 1px dashed #33465f; outline-offset: 4px; }
+.hud-preview .hud-menu { min-width: 180px; padding: 12px 14px; border: 1px solid #26384f; border-radius: 8px; background: rgba(8, 16, 28, 0.9); }
+.hud-preview .hud-menu-head { font-size: 11px; letter-spacing: 0.3em; margin-bottom: 8px; color: #9fc3e8; }
+.hud-preview .hud-menu-row { display: flex; gap: 8px; font-size: 10px; letter-spacing: 0.14em; color: #7d8b9c; margin-top: 4px; }
+
+.hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  right: 12px;
+  color: #64748b;
+  font-size: 11px;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* ------------------------------- Инспектор ------------------------------- */
+
+.inspector { padding: 10px 12px 30px; }
+
+.inspector h4 {
+  margin: 16px 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.inspector .row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.inspector .row > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.inspector input[type="text"],
+.inspector input[type="number"],
+.inspector select {
+  width: 100%;
+  background: #0a111b;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.inspector input:focus,
+.inspector select:focus {
+  outline: none;
+  border-color: #35506e;
+}
+
+.inspector .trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.inspector input[type="color"] {
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  background: #0a111b;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.inspector .empty { color: var(--muted); }
+
+.inspector .script-row { grid-template-columns: minmax(0, 1fr) 28px; }
+
+.inspector .script-row > span {
+  color: var(--text);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector .icon-btn {
+  padding: 1px 0;
+  width: 26px;
+  line-height: 1;
+  color: var(--danger);
+  border-color: #3a2430;
+  background: #1a1116;
+}
+
+.inspector .wide { width: 100%; margin-top: 4px; }
+
+.hint-inline {
+  color: #5d6b7c;
+  font-size: 10.5px;
+  line-height: 1.4;
+  margin-top: 10px;
+}
+
+/* -------------------------------- Статус --------------------------------- */
+
+.status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: #93a2b4;
+}
+
+.status .muted { color: #5f6d7e; }
+
+.status .error { color: var(--danger); }
+
+/* Поле выбора файла: доступно, но не занимает место в панели */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tree-row .eye {
+  flex: 0 0 auto;
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: #7d8b9c;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.tree-row .eye:hover { color: #ffb36b; }
+
+.tree-row.hidden-object .name,
+.tree-row.hidden-object .kind,
+.tree-row.hidden-object .icon { opacity: 0.45; }
+
+.mode-title {
+  margin-left: 14px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffb36b;
+  white-space: nowrap;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid #2b3d53;
+  border-radius: 7px;
+  background: #0d1623;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+.context-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: #cfe3ff;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu button:hover { background: rgba(255, 138, 61, 0.16); color: #ffb36b; }
+.context-menu button:disabled { color: #5d6b7d; cursor: default; }
+
+.context-sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: #223248;
+}
+
+.prefab-picker .asset-select { min-width: 170px; }
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 7, 14, 0.68);
+}
+
+.dialog-backdrop[hidden] { display: none; }
+
+.dialog {
+  width: min(360px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid #2b3d53;
+  border-radius: 10px;
+  background: #0d1623;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: #cfe3ff;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.dialog select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #2b3d53;
+  border-radius: 6px;
+  background: #101c2b;
+  color: #cfe3ff;
+  font: inherit;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dialog-actions button {
+  padding: 7px 12px;
+  border: 1px solid #2b3d53;
+  border-radius: 6px;
+  background: #142234;
+  color: #cfe3ff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dialog-actions button.primary { border-color: #ff8a3d; color: #ffb36b; }

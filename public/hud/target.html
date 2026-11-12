@@ -1,0 +1,45 @@
+<div id="target-marker" aria-hidden="true">
+  <svg viewBox="0 0 120 120" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round">
+    <defs>
+      <radialGradient id="target-backdrop" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="rgba(10, 28, 48, 0.02)" />
+        <stop offset="62%" stop-color="rgba(10, 30, 52, 0.12)" />
+        <stop offset="100%" stop-color="rgba(6, 18, 34, 0.44)" />
+      </radialGradient>
+    </defs>
+
+    <circle cx="60" cy="60" r="53" fill="url(#target-backdrop)" stroke="none" />
+
+    <g class="target-outer">
+      <circle cx="60" cy="60" r="57" opacity="0.28" stroke-dasharray="1 5" />
+      <circle cx="60" cy="60" r="52" opacity="0.75" stroke-dasharray="28 12 5 12" stroke-width="1.8" />
+      <circle cx="60" cy="60" r="48" opacity="0.24" stroke-width="0.8" />
+    </g>
+
+    <g class="target-mid">
+      <circle cx="60" cy="60" r="41" opacity="0.5" stroke-dasharray="2 4" />
+      <circle cx="60" cy="60" r="35" opacity="0.85" stroke-dasharray="18 9" stroke-width="2.4" />
+      <path d="M60 25v5 M60 90v5 M25 60h5 M90 60h5" opacity="0.55" />
+    </g>
+
+    <g class="target-scan">
+      <circle cx="60" cy="60" r="49" pathLength="1" stroke-dasharray="0.11 0.89" stroke-width="2.6" opacity="0.95" />
+    </g>
+
+    <path class="target-cardinals" d="M60 2v9 M60 109v9 M2 60h9 M109 60h9" opacity="0.7" />
+    <path class="target-brackets" d="M23 33l7 7 M97 33l-7 7 M23 87l7-7 M97 87l-7-7" opacity="0.38" />
+
+    <g class="target-progress-group" transform="rotate(-90 60 60)">
+      <circle cx="60" cy="60" r="46" opacity="0.12" stroke-width="2" />
+      <circle id="target-progress" class="target-progress" cx="60" cy="60" r="46" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" stroke-width="7" />
+    </g>
+
+    <g class="target-core">
+      <circle cx="60" cy="60" r="16" opacity="0.85" />
+      <circle cx="60" cy="60" r="10.5" opacity="0.62" stroke-dasharray="3 3" />
+      <path d="M60 45v5 M60 70v5 M45 60h5 M70 60h5" opacity="0.9" />
+      <path d="M56 56l4 4 4-4 M56 64l4-4 4 4" opacity="0.75" />
+      <circle cx="60" cy="60" r="1.8" fill="currentColor" stroke="none" />
+    </g>
+  </svg>
+</div>

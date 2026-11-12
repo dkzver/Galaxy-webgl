@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "id": "menyu",
+  "title": "Меню",
+  "entities": [
+    {
+      "id": "hud-menu",
+      "name": "Меню",
+      "type": "hud",
+      "position": [
+        50,
+        50,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "hud": {
+        "file": "hud/menu.html",
+        "follow": "none",
+        "anchor": "center",
+        "startHidden": true
+      }
+    }
+  ]
+}

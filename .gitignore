@@ -1,0 +1,20 @@
+# Служебные папки инструментов и IDE
+.zwork/
+.shots/
+.idea/
+node_modules/
+
+# Бэкапы и системный мусор
+*.bak
+*.blend1
+Thumbs.db
+.DS_Store
+
+# Одноразовые скрипты правок (исторические, не часть сборки)
+tools/_*
+
+# Исходники, которые лежат в assets/ и не нужны рантайму
+public/models/Corinth_Cargo_Transporter.obj
+public/models/orbital_station.obj
+public/models/orbital_station.glb
+public/models/test*.obj

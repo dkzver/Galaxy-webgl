@@ -1,0 +1,49 @@
+<div id="pause" class="open" aria-hidden="false">
+  <div class="pause-head">
+    <span>Пауза</span>
+    <kbd>ESC</kbd>
+  </div>
+
+  <div class="pause-row camera-row">
+    <div class="pause-label"><span>Высота камеры</span><output id="out-cam">0</output></div>
+    <input id="set-cam" type="range" min="0" max="200" step="1" value="0">
+  </div>
+
+  <div class="pause-row camera-row">
+    <div class="pause-label"><span>Дистанция камеры</span><output id="out-dist">0</output></div>
+    <input id="set-dist" type="range" min="0" max="120" step="1" value="0">
+  </div>
+
+  <div class="pause-row camera-row">
+    <div class="pause-label"><span>Корабль ниже центра</span><output id="out-drop">0</output></div>
+    <input id="set-drop" type="range" min="0" max="15" step="0.5" value="0">
+  </div>
+
+  <div class="pause-row camera-row">
+    <div class="pause-label"><span>Наклон камеры</span><output id="out-tilt">0</output></div>
+    <input id="set-tilt" type="range" min="0" max="360" step="1" value="0">
+  </div>
+
+  <div class="pause-row">
+    <div class="pause-label"><span>Резкость мыши</span><output id="out-smooth">2.8</output></div>
+    <input id="set-smooth" type="range" min="0.8" max="8" step="0.1" value="2.8">
+  </div>
+
+  <div class="pause-row">
+    <div class="pause-label"><span>Скорость поворота</span><output id="out-turn">2.6</output></div>
+    <input id="set-turn" type="range" min="0.3" max="4" step="0.1" value="2.6">
+  </div>
+
+  <div class="pause-row">
+    <div class="pause-label"><span>Скорость движения</span><output id="out-speed">85</output></div>
+    <input id="set-speed" type="range" min="10" max="200" step="5" value="85">
+  </div>
+
+  <div id="camera-missing" class="pause-camera-note" hidden>
+    В сцене нет камеры — кадр не рисуется, виден только фон. Добавьте объект «камера» в редакторе.
+  </div>
+
+  <div id="editor-note" class="pause-editor-note" role="status" aria-live="polite"></div>
+
+  <div class="pause-foot">Esc — вернуться в полёт</div>
+</div>

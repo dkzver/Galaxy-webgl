@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "id": "kub-s-yadrom",
+  "title": "Куб с ядром",
+  "entities": [
+    {
+      "id": "cube",
+      "type": "primitive",
+      "shape": "box",
+      "name": "Куб с ядром",
+      "size": [
+        8,
+        8,
+        8
+      ],
+      "position": [
+        12,
+        3,
+        -116
+      ],
+      "spin": 0.06,
+      "material": {
+        "color": "#3d4757",
+        "metal": 0.6,
+        "specular": 1.1
+      },
+      "body": {
+        "kind": "static",
+        "collider": {
+          "shape": "box",
+          "halfExtents": [
+            4,
+            4,
+            4
+          ]
+        },
+        "restitution": 0.55,
+        "friction": 0.25
+      },
+      "children": [
+        {
+          "id": "cube-core",
+          "type": "primitive",
+          "shape": "sphere",
+          "name": "Ядро куба",
+          "size": [
+            10.8,
+            10.8,
+            10.8
+          ],
+          "material": {
+            "color": "#2e80ae",
+            "emissive": "#124d70",
+            "specular": 1.2,
+            "metal": 0
+          },
+          "blend": "additive",
+          "depthWrite": false,
+          "glow": {
+            "color": "#38c7ff",
+            "size": 10.26,
+            "intensity": 0.5
+          }
+        }
+      ]
+    }
+  ]
+}

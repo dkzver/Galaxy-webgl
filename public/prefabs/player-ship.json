@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "id": "player-ship",
+  "title": "Корабль игрока",
+  "entities": [
+    {
+      "id": "player-ship",
+      "type": "empty",
+      "name": "Игрок",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "body": {
+        "kind": "dynamic",
+        "mass": 12,
+        "lockRotation": true,
+        "restitution": 0.55,
+        "friction": 0.18
+      },
+      "scripts": [
+        "input.js",
+        "movement.js",
+        "rotation.js",
+        "weapon.js",
+        "extract.js"
+      ],
+      "children": [
+        {
+          "id": "player-model",
+          "type": "model",
+          "name": "Corinth",
+          "asset": "corinth",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1
+        }
+      ]
+    }
+  ]
+}

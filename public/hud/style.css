@@ -1,0 +1,792 @@
+/* Стили HTML-слоёв HUD текущей сцены.
+   Подключается из объекта «Сцена» → «стили HUD» (одно поле на всю сцену).
+   Вид и поток слоёв живут здесь; движок только вставляет HTML и считает
+   координаты для привязанных к объектам слоёв.
+
+   Здесь: меню паузы, оружие, добыча, прицел и маркер цели, клавиши, скорость,
+   подписи станции и прочие элементы, которые приходят из public/hud/*.html.
+*/
+
+/* Базовый слой: обычный блок страницы, идёт от левого верхнего края */
+.hud-layer {
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+/* Привязанный к объекту слой: left/top ставит движок, position — стиль */
+.hud-layer.attached {
+  position: fixed;
+  z-index: 6;
+}
+
+.hud-layer.offscreen { opacity: 0; }
+
+.hud-layer.hidden { display: none; }
+
+/* Меню сцены (public/hud/menu.html) */
+
+.hud-menu {
+  min-width: 220px;
+  padding: 18px 22px;
+  border: 1px solid rgba(90, 140, 200, 0.35);
+  border-radius: 10px;
+  background: rgba(8, 16, 28, 0.88);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  color: #cfe3ff;
+}
+
+.hud-menu-head {
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  margin-bottom: 12px;
+  color: #9fc3e8;
+}
+
+.hud-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #7d8b9c;
+  margin-top: 6px;
+}
+
+.hud-menu-row kbd {
+  border: 1px solid #26384f;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 9px;
+  color: #cfe3ff;
+}
+
+.hud-layer .key span { white-space: nowrap; }
+
+/* Внутри слоя курсоры центрируются на его точке; id-селекторы сильнее,
+   поэтому перебиваем их явно */
+
+#scene-hud #reticle,
+#scene-hud #target-marker {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+#reticle {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+#reticle .tick {
+  position: absolute;
+  background: rgba(215, 238, 255, 0.95);
+  box-shadow: 0 0 10px rgba(110, 170, 255, 0.9);
+}
+
+#reticle .t { left: 50%; top: 0; width: 1px; height: 11px; transform: translateX(-50%); }
+
+#reticle .b { left: 50%; bottom: 0; width: 1px; height: 11px; transform: translateX(-50%); }
+
+#reticle .l { top: 50%; left: 0; height: 1px; width: 11px; transform: translateY(-50%); }
+
+#reticle .r { top: 50%; right: 0; height: 1px; width: 11px; transform: translateY(-50%); }
+
+#reticle .dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 186, 110, 0.95);
+  box-shadow: 0 0 10px rgba(255, 140, 60, 0.9);
+}
+
+/* Анимированный маркер мировой цели: двигается по экранной проекции */
+
+#target-marker {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  color: rgba(104, 218, 255, 0.95);
+  filter: drop-shadow(0 0 4px rgba(60, 180, 255, 0.55)) drop-shadow(0 0 18px rgba(30, 110, 255, 0.22));
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  will-change: left, top;
+}
+
+#target-marker.visible {
+  opacity: 0.96;
+}
+
+#target-marker svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+  overflow: visible;
+}
+
+.target-outer,
+.target-mid,
+.target-scan,
+.target-core {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+}
+
+.target-outer {
+  animation: target-spin 16s linear infinite;
+}
+
+.target-mid {
+  animation: target-spin-reverse 11s linear infinite;
+}
+
+.target-scan {
+  animation: target-spin 4.2s linear infinite;
+  opacity: 0.9;
+}
+
+.target-core {
+  animation: target-breathe 2.6s ease-in-out infinite;
+}
+
+.target-progress-group {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.target-progress {
+  stroke: var(--accent);
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgba(255, 138, 61, 0.9));
+  transition: opacity 0.2s ease;
+}
+
+#target-marker.reloading .target-progress-group,
+#target-marker.bursting .target-progress-group {
+  opacity: 1;
+}
+
+#target-marker.reloading .target-progress {
+  opacity: 1;
+  animation: target-reload-pulse 1.1s ease-in-out infinite;
+}
+
+#target-marker.bursting .target-progress {
+  opacity: 1;
+  stroke: #68dcff;
+  filter: drop-shadow(0 0 4px rgba(80, 210, 255, 0.85));
+}
+
+#target-marker.reloading .target-outer {
+  animation-duration: 6.5s;
+  opacity: 0.55;
+}
+
+#target-marker.reloading .target-scan {
+  animation-duration: 2.2s;
+}
+
+#target-marker.fire .target-core {
+  animation: target-hit 0.42s ease-out;
+}
+
+body.paused #target-marker {
+  opacity: 0;
+}
+
+@keyframes target-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes target-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes target-breathe {
+  0%, 100% { opacity: 0.72; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes target-hit {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+@keyframes target-reload-pulse {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
+
+body.paused #reticle { opacity: 0; }
+
+body.orbiting #reticle { opacity: 0; }
+
+#pause {
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  width: 292px;
+  padding: 16px 18px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(150, 185, 230, 0.22);
+  background: linear-gradient(180deg, rgba(12, 20, 34, 0.92), rgba(6, 11, 21, 0.92));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  color: var(--hud);
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  z-index: 20;
+  font-size: 11px;
+}
+
+#pause.open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.pause-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--hud);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(150, 185, 230, 0.16);
+}
+
+.pause-head kbd {
+  min-width: 30px;
+  height: 20px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.pause-row { margin-bottom: 14px; }
+
+/* Камеру задаёт только сцена: без неё ползунки кадра не нужны */
+
+#pause.no-camera .pause-row.camera-row { display: none; }
+
+.pause-camera-note {
+  margin: 0 0 14px;
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: rgba(255, 170, 120, 0.75);
+}
+
+.pause-camera-note[hidden] { display: none; }
+
+.pause-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 7px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+}
+
+.pause-label output {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+#pause input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(150, 185, 230, 0.22);
+  outline: none;
+  accent-color: var(--accent);
+}
+
+#pause input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(255, 138, 61, 0.7);
+  cursor: pointer;
+}
+
+#pause input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+#pause select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(150, 185, 230, 0.26);
+  background: rgba(10, 17, 29, 0.9);
+  color: var(--hud);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  outline: none;
+}
+
+#pause select:focus {
+  border-color: rgba(255, 138, 61, 0.7);
+}
+
+#pause select option {
+  background: #0a1120;
+  color: var(--hud);
+}
+
+.pause-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.editor-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 138, 61, 0.42);
+  border-radius: 6px;
+  background: rgba(255, 138, 61, 0.07);
+  color: rgba(255, 170, 120, 0.92);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.editor-button:hover,
+.editor-button:focus-visible {
+  outline: none;
+  color: var(--hud);
+  border-color: rgba(255, 138, 61, 0.8);
+  background: rgba(255, 138, 61, 0.16);
+}
+
+.editor-arrow {
+  font-size: 13px;
+  line-height: 0.8;
+  color: var(--accent);
+  transition: transform 0.15s ease;
+}
+
+.editor-button:hover .editor-arrow {
+  transform: translateX(2px);
+}
+
+.pause-editor-note {
+  max-height: 0;
+  overflow: hidden;
+  margin-top: 0;
+  opacity: 0;
+  text-align: right;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 170, 120, 0.75);
+  transition: opacity 0.18s ease, max-height 0.18s ease, margin-top 0.18s ease;
+}
+
+.pause-editor-note.visible {
+  max-height: 24px;
+  margin-top: 6px;
+  opacity: 1;
+}
+
+.pause-foot {
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(150, 175, 210, 0.45);
+}
+
+.brand {
+  font-size: 13px;
+  letter-spacing: 0.34em;
+  font-weight: 600;
+  color: var(--hud);
+  text-transform: uppercase;
+}
+
+.brand span {
+  color: var(--accent);
+  margin-left: 0.18em;
+}
+
+.model {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+}
+
+.hint {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(150, 175, 210, 0.42);
+  transition: color 0.3s ease;
+}
+
+/* Подсказка при входе в ресурсную сферу астероида */
+
+#resource-prompt {
+  position: fixed;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  color: rgba(228, 246, 255, 0.96);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  -webkit-text-stroke: 1px rgba(145, 220, 255, 0.65);
+  text-shadow:
+    -1px -1px 0 rgba(3, 10, 18, 0.95),
+    1px -1px 0 rgba(3, 10, 18, 0.95),
+    -1px 1px 0 rgba(3, 10, 18, 0.95),
+    1px 1px 0 rgba(3, 10, 18, 0.95),
+    0 0 9px rgba(70, 190, 255, 0.9),
+    0 0 22px rgba(35, 120, 255, 0.55);
+}
+
+#resource-prompt.visible {
+  opacity: 1;
+  animation: resource-flicker 2.3s infinite;
+}
+
+@keyframes resource-flicker {
+  0%, 100% { opacity: 1; }
+  7% { opacity: 0.42; }
+  11% { opacity: 1; }
+  46% { opacity: 0.72; }
+  50% { opacity: 0.32; }
+  55% { opacity: 1; }
+  78% { opacity: 0.58; }
+  82% { opacity: 1; }
+}
+
+/* Полоса добычи под подсказкой: прогресс и счётчик ресурсов */
+
+#mining-hud {
+  position: fixed;
+  top: 136px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 190px;
+  z-index: 7;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+}
+
+#mining-hud.visible { opacity: 1; }
+
+.mining-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+#mining-caption { color: rgba(160, 205, 235, 0.85); }
+
+#mining-count {
+  color: rgba(228, 244, 255, 0.92);
+  font-variant-numeric: tabular-nums;
+}
+
+.mining-bar {
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(80, 120, 160, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(120, 180, 220, 0.14);
+}
+
+#mining-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(88, 196, 255, 0.85), rgba(186, 240, 255, 0.98));
+  box-shadow: 0 0 8px rgba(90, 200, 255, 0.8);
+  transition: width 0.08s linear;
+}
+
+#mining-hud.mining #mining-fill {
+  background: linear-gradient(90deg, rgba(255, 146, 56, 0.9), rgba(255, 226, 172, 1));
+  box-shadow: 0 0 9px rgba(255, 160, 70, 0.85);
+}
+
+#mining-hud.mining #mining-caption { color: rgba(255, 202, 146, 0.95); }
+
+/* --- панель выбора оружия --- */
+
+#weapons {
+  position: fixed;
+  left: 50%;
+  bottom: 0px;
+  transform: translateX(-50%);
+  padding: 8px 10px 9px;
+  border: 1px solid rgba(150, 185, 230, 0.2);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(12, 20, 34, 0.82), rgba(6, 11, 21, 0.86));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  color: var(--hud);
+  pointer-events: auto;
+  z-index: 6;
+  opacity: 0.96;
+}
+
+.weapon-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 6px;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+}
+
+#weapon-status {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.weapon-slots {
+  display: flex;
+  gap: 5px;
+}
+
+.weapon-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid rgba(150, 185, 230, 0.18);
+  border-radius: 5px;
+  background: rgba(120, 160, 220, 0.04);
+  color: var(--hud-dim);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.weapon-slot kbd {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  font-size: 9px;
+}
+
+.weapon-slot:hover,
+.weapon-slot.active {
+  color: var(--hud);
+  border-color: rgba(255, 138, 61, 0.7);
+  background: rgba(255, 138, 61, 0.12);
+  box-shadow: inset 0 0 12px rgba(255, 138, 61, 0.08);
+}
+
+.weapon-slot.active kbd {
+  border-color: rgba(255, 138, 61, 0.8);
+  color: var(--accent);
+}
+
+@media (max-width: 620px) {
+  #weapons {
+    bottom: 112px;
+    max-width: calc(100vw - 28px);
+  }
+
+  .weapon-slots {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .weapon-slot {
+    font-size: 8px;
+    padding-right: 6px;
+  }
+}
+
+.bottom-left, .bottom-right {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+}
+
+.speed-label {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--hud-dim);
+  padding-bottom: 10px;
+}
+
+.speed {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed span {
+  font-size: 54px;
+  line-height: 0.9;
+  font-weight: 200;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 24px rgba(120, 170, 255, 0.35);
+  min-width: 2.6ch;
+}
+
+.speed i {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--hud-dim);
+  text-transform: uppercase;
+}
+
+.bottom-right {
+  margin-left: auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 12px 18px;
+}
+
+.key {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid rgba(160, 190, 230, 0.35);
+  border-radius: 4px;
+  background: rgba(120, 160, 220, 0.07);
+  color: var(--hud);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Панель оружия как HUD-слой сцены, а не фиксированный блок движка */
+
+.hud-layer #weapons {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  z-index: 1;
+}
+
+/* Добыча как HUD-слой сцены: подсказка и прогресс в одной колонке */
+
+.hud-layer .mining-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-layer #resource-prompt,
+.hud-layer #mining-hud {
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  transform: none;
+}
+
+/* Подпись станции: HUD-слой, привязанный к мировому объекту */
+
+.station-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  border: 1px solid rgba(120, 190, 230, 0.35);
+  border-radius: 4px;
+  background: rgba(6, 16, 28, 0.72);
+  box-shadow: 0 0 24px rgba(70, 170, 220, 0.12), inset 0 0 18px rgba(90, 190, 230, 0.05);
+  color: #cfeaff;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(120, 210, 255, 0.45);
+}
+
+.station-line {
+  width: 22px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(120, 210, 255, 0.8));
+}
+
+.station-line:last-child { transform: scaleX(-1); }

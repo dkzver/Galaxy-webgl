@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "id": "pricel",
+  "title": "Прицел",
+  "entities": [
+    {
+      "id": "hud-reticle",
+      "type": "hud",
+      "hud": {
+        "file": "hud/reticle.html",
+        "follow": "mouse",
+        "anchor": "center"
+      },
+      "position": [
+        50,
+        50,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "name": "Прицел"
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GalaxyDemo — редактор модели</title>
+<link rel="stylesheet" href="editor.css">
+<link rel="stylesheet" href="model-editor.css">
+</head>
+<body>
+<div class="model-editor">
+  <header class="bar">
+    <div class="brand">GALAXY <span>EDITOR</span> · модель</div>
+
+    <div class="bar-group">
+      <select id="model-select" aria-label="Модель"></select>
+      <button id="btn-save" type="button" class="primary" title="Ctrl+S">Сохранить</button>
+      <button id="btn-reimport" type="button" title="Заменить меш модели из .glb — id и физика сохранятся">Переимпортировать</button>
+      <input id="glb-input" type="file" accept=".glb,model/gltf-binary" class="sr-only" tabindex="-1">
+      <span id="save-state" class="save-state">без изменений</span>
+    </div>
+
+    <a class="play" href="editor.html">← В редактор сцены</a>
+  </header>
+
+  <main class="model-body">
+    <section class="card preview-card">
+      <h4>Предпросмотр</h4>
+      <div class="preview-wrap">
+        <canvas id="preview"></canvas>
+      </div>
+      <p class="hint-inline">ЛКМ — поворот, колесо — масштаб. Клик по боксу выбирает часть, поля в панели меняют её размер и положение, двойной клик по корпусу добавляет бокс. Перетаскивание мышью коллайдер не двигает. Зелёным показан коллайдер, жёлтым — выбранная часть.</p>
+    </section>
+
+    <section class="card summary-card">
+      <h4>Размеры модели</h4>
+      <div id="summary" class="summary"></div>
+      <p class="hint-inline">Габариты берутся из манифеста модели (<b>public/models/&lt;id&gt;.json</b>). Меняются только пересборкой ассета, здесь — справочно. 1 единица = 1 м; в скобках — сантиметры.</p>
+    </section>
+
+    <section class="card physics-card">
+      <h4>Физика по умолчанию</h4>
+
+      <div class="field">
+        <span>тип</span>
+        <select id="kind">
+          <option value="static">static — неподвижный</option>
+          <option value="dynamic">dynamic — с массой</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <span>масса</span>
+        <input id="mass" type="number" min="0.1" step="1" value="12">
+      </div>
+
+      <div class="field">
+        <span>отскок</span>
+        <input id="restitution" type="number" min="0" max="1" step="0.05" value="0.55">
+      </div>
+
+      <div class="field">
+        <span>трение</span>
+        <input id="friction" type="number" min="0" step="0.01" value="0.2">
+      </div>
+
+      <h4>Коллайдер</h4>
+
+      <div class="field">
+        <span>форма</span>
+        <select id="shape">
+          <option value="sphere">сфера</option>
+          <option value="box">бокс</option>
+          <option value="compound">compound — набор боксов и сфер</option>
+        </select>
+      </div>
+
+      <div class="field" id="row-radius">
+        <span>радиус</span>
+        <input id="radius" type="number" min="0.01" step="0.1" value="2">
+      </div>
+
+      <div class="field" id="row-half">
+        <span>полуразмеры</span>
+        <div class="trio">
+          <input id="hx" type="number" min="0.01" step="0.1" value="1">
+          <input id="hy" type="number" min="0.01" step="0.1" value="1">
+          <input id="hz" type="number" min="0.01" step="0.1" value="1">
+        </div>
+      </div>
+
+      <div class="field" id="row-offset">
+        <span>центр</span>
+        <div class="trio">
+          <input id="ox" type="number" step="0.1" value="0" title="смещение по X">
+          <input id="oy" type="number" step="0.1" value="0" title="смещение по Y">
+          <input id="oz" type="number" step="0.1" value="0" title="смещение по Z">
+        </div>
+      </div>
+
+      <div id="compound-panel" class="compound" hidden>
+        <div class="compound-head">
+          <span id="compound-count" class="compound-count">0 частей</span>
+          <div class="compound-actions">
+            <button id="btn-add-box" type="button" title="Добавить бокс в центр модели">+ бокс</button>
+            <button id="btn-add-sphere" type="button" title="Добавить сферу в центр модели">+ сфера</button>
+          </div>
+        </div>
+
+        <div id="parts-list" class="parts-list" role="listbox" aria-label="Части коллайдера"></div>
+
+        <div id="part-editor" class="part-editor" hidden>
+          <div class="part-editor-head">
+            <b id="part-title">бокс 1</b>
+            <div class="part-editor-actions">
+              <button id="btn-duplicate" type="button" title="Дублировать часть">копия</button>
+              <button id="btn-mirror" type="button" title="Отразить по X относительно центра модели">↔ X</button>
+              <button id="btn-delete" type="button" class="danger" title="Удалить часть">удалить</button>
+            </div>
+          </div>
+
+          <div class="field compact">
+            <span>центр</span>
+            <div class="trio">
+              <input id="part-x" type="number" step="0.1" title="смещение по X">
+              <input id="part-y" type="number" step="0.1" title="смещение по Y">
+              <input id="part-z" type="number" step="0.1" title="смещение по Z">
+            </div>
+          </div>
+
+          <div class="field compact" id="row-part-half">
+            <span>полуразмеры</span>
+            <div class="trio">
+              <input id="part-hx" type="number" min="0.01" step="0.1" title="полуразмер по X">
+              <input id="part-hy" type="number" min="0.01" step="0.1" title="полуразмер по Y">
+              <input id="part-hz" type="number" min="0.01" step="0.1" title="полуразмер по Z">
+            </div>
+          </div>
+
+          <div class="field compact" id="row-part-radius">
+            <span>радиус</span>
+            <input id="part-radius" type="number" min="0.01" step="0.1" title="радиус сферы">
+          </div>
+        </div>
+      </div>
+
+      <h4>Автоколлайдер</h4>
+
+      <div class="field">
+        <span>режим</span>
+        <select id="fit-mode">
+          <option value="boxes">боксы (корпус)</option>
+          <option value="spheres">сферы (объём)</option>
+          <option value="hybrid">гибрид (боксы + сферы)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <span>детализация · <b id="fit-detail-value">24</b></span>
+        <input id="fit-detail" type="range" min="8" max="48" step="1" value="24">
+      </div>
+
+      <div class="field">
+        <span id="fit-limit-label">лимит боксов</span>
+        <input id="fit-max" type="number" min="1" max="32" step="1" value="32">
+      </div>
+
+      <div class="fit-actions">
+        <button id="btn-fit" type="button" class="primary">Построить по модели</button>
+        <button id="btn-simplify" type="button" title="Слить соседние боксы до лимита">Упростить</button>
+      </div>
+
+      <div class="fit-actions">
+        <button id="btn-fit-sphere" type="button">Одна сфера</button>
+        <button id="btn-clear" type="button">Очистить</button>
+      </div>
+
+      <p id="fit-stats" class="fit-stats">—</p>
+      <p id="collider-state" class="collider-state">коллайдер не загружен</p>
+
+      <p class="hint-inline">Строится по треугольникам меша: объём модели раскладывается на боксы, они не выходят за корпус. Детализация — число вокселей по длинной стороне, лимит — сколько боксов оставить (движок принимает до 32). Настройки хранятся в <b>public/models/&lt;id&gt;.physics.json</b>.</p>
+
+      <p class="hint-inline">В предпросмотре: клик по боксу — выбрать часть, двойной клик по корпусу — добавить бокс в точку попадания. Положение и размеры меняются только полями — мышью коллайдер не перетаскивается. Ctrl+Z — отменить, Delete — удалить выбранную часть.</p>
+
+      <p class="hint-inline">Значения — в локальных единицах модели: в сцене они умножаются на масштаб объекта. Эти настройки подставляются при добавлении модели в сцену; у уже добавленных объектов коллайдер правится в их инспекторе.</p>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/editor/model-editor.js"></script>
+</body>
+</html>

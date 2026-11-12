@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "id": "rocket",
+  "title": "Ракета",
+  "entities": [
+    {
+      "id": "rocket",
+      "type": "empty",
+      "name": "Ракета",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "tags": [
+        "projectile",
+        "rocket"
+      ],
+      "projectile": {
+        "speed": 95,
+        "life": 6,
+        "radius": 0.42,
+        "turnRate": 0,
+        "damage": 25,
+        "impulse": 40,
+        "impact": "impact-spark",
+        "trail": "smoke-trail"
+      },
+      "effects": [
+        {
+          "id": "trail",
+          "effect": "smoke-trail",
+          "trigger": "manual",
+          "offset": [
+            0,
+            0,
+            1.25
+          ],
+          "params": {
+            "size": 0.9,
+            "opacity": 0.3
+          },
+          "duration": 1.2,
+          "loop": true
+        }
+      ],
+      "body": {
+        "kind": "dynamic",
+        "mass": 2,
+        "lockRotation": true,
+        "restitution": 0.3,
+        "friction": 0.25,
+        "collider": {
+          "shape": "compound",
+          "spheres": [],
+          "boxes": [
+            {
+              "offset": [
+                -0.106,
+                -0.128,
+                -0.28
+              ],
+              "halfExtents": [
+                0.254,
+                0.254,
+                1.526
+              ]
+            },
+            {
+              "offset": [
+                -0.106,
+                0.349,
+                -0.121
+              ],
+              "halfExtents": [
+                0.254,
+                0.095,
+                1.367
+              ]
+            },
+            {
+              "offset": [
+                0.371,
+                -0.128,
+                0.038
+              ],
+              "halfExtents": [
+                0.095,
+                0.254,
+                1.208
+              ]
+            },
+            {
+              "offset": [
+                0.371,
+                0.349,
+                -1.075
+              ],
+              "halfExtents": [
+                0.095,
+                0.095,
+                0.095
+              ]
+            },
+            {
+              "offset": [
+                -0.583,
+                -0.287,
+                0.992
+              ],
+              "halfExtents": [
+                0.095,
+                0.095,
+                0.254
+              ]
+            },
+            {
+              "offset": [
+                0.636,
+                -0.287,
+                0.992
+              ],
+              "halfExtents": [
+                0.043,
+                0.095,
+                0.254
+              ]
+            },
+            {
+              "offset": [
+                0.053,
+                0.674,
+                0.992
+              ],
+              "halfExtents": [
+                0.095,
+                0.102,
+                0.254
+              ]
+            }
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "rocket-mesh",
+          "type": "model",
+          "name": "Меш ракеты",
+          "asset": "rocket",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1
+        }
+      ]
+    }
+  ]
+}

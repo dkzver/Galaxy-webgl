@@ -1,0 +1,344 @@
+{
+  "name": "Corinth Cargo Transporter",
+  "length": 15,
+  "bounds": {
+    "min": [
+      -4.332,
+      -2.588,
+      -7.5
+    ],
+    "max": [
+      4.332,
+      2.588,
+      7.5
+    ]
+  },
+  "groups": [
+    {
+      "name": "group2 polySurface219",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 1154,
+      "indexCount": 2634,
+      "positionByteOffset": 0,
+      "normalByteOffset": 13848,
+      "uvByteOffset": 27696,
+      "indexByteOffset": 36928
+    },
+    {
+      "name": "group2 polySurface258",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 5558,
+      "indexCount": 18792,
+      "positionByteOffset": 42196,
+      "normalByteOffset": 108892,
+      "uvByteOffset": 175588,
+      "indexByteOffset": 220052
+    },
+    {
+      "name": "group2 polySurface280",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 4983,
+      "indexCount": 17604,
+      "positionByteOffset": 257636,
+      "normalByteOffset": 317432,
+      "uvByteOffset": 377228,
+      "indexByteOffset": 417092
+    },
+    {
+      "name": "group2 polySurface467",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 11673,
+      "indexCount": 30498,
+      "positionByteOffset": 452300,
+      "normalByteOffset": 592376,
+      "uvByteOffset": 732452,
+      "indexByteOffset": 825836
+    },
+    {
+      "name": "group2 polySurface488 pCube92 group1",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 886832,
+      "normalByteOffset": 887972,
+      "uvByteOffset": 889112,
+      "indexByteOffset": 889872
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface489",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 890232,
+      "normalByteOffset": 891372,
+      "uvByteOffset": 892512,
+      "indexByteOffset": 893272
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface490",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 893632,
+      "normalByteOffset": 894772,
+      "uvByteOffset": 895912,
+      "indexByteOffset": 896672
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface491",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 897032,
+      "normalByteOffset": 898172,
+      "uvByteOffset": 899312,
+      "indexByteOffset": 900072
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface492",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 900432,
+      "normalByteOffset": 901572,
+      "uvByteOffset": 902712,
+      "indexByteOffset": 903472
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface493",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 903832,
+      "normalByteOffset": 904972,
+      "uvByteOffset": 906112,
+      "indexByteOffset": 906872
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface494",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 907232,
+      "normalByteOffset": 908372,
+      "uvByteOffset": 909512,
+      "indexByteOffset": 910272
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface495",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 910632,
+      "normalByteOffset": 911772,
+      "uvByteOffset": 912912,
+      "indexByteOffset": 913672
+    },
+    {
+      "name": "group2 pCube92 group1 polySurface496",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 95,
+      "indexCount": 180,
+      "positionByteOffset": 914032,
+      "normalByteOffset": 915172,
+      "uvByteOffset": 916312,
+      "indexByteOffset": 917072
+    },
+    {
+      "name": "group2 pCube120 Corinth_Cargo_Ship",
+      "texture": "hull",
+      "color": "#555d6a",
+      "vertexCount": 12392,
+      "indexCount": 28680,
+      "positionByteOffset": 917432,
+      "normalByteOffset": 1066136,
+      "uvByteOffset": 1214840,
+      "indexByteOffset": 1313976
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship polySurface1211 polySurface1209 polySurface561",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 164,
+      "indexCount": 360,
+      "positionByteOffset": 1371336,
+      "normalByteOffset": 1373304,
+      "uvByteOffset": 1375272,
+      "indexByteOffset": 1376584
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship SShip_Cockpit_Fixed:polySurface62_polySurface46_polySurface43_pCube25",
+      "texture": "cockpit",
+      "color": "#7a8fa0",
+      "vertexCount": 4622,
+      "indexCount": 7860,
+      "positionByteOffset": 1377304,
+      "normalByteOffset": 1432768,
+      "uvByteOffset": 1488232,
+      "indexByteOffset": 1525208
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship pCube130",
+      "texture": "hull",
+      "color": "#7a838f",
+      "vertexCount": 17222,
+      "indexCount": 38895,
+      "positionByteOffset": 1540928,
+      "normalByteOffset": 1747592,
+      "uvByteOffset": 1954256,
+      "indexByteOffset": 2092032
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship polySurface1060 polySurface930",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 80,
+      "indexCount": 132,
+      "positionByteOffset": 2169824,
+      "normalByteOffset": 2170784,
+      "uvByteOffset": 2171744,
+      "indexByteOffset": 2172384
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship polySurface928",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 8883,
+      "indexCount": 25908,
+      "positionByteOffset": 2172648,
+      "normalByteOffset": 2279244,
+      "uvByteOffset": 2385840,
+      "indexByteOffset": 2456904
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship Line008",
+      "texture": "hull",
+      "color": "#37404b",
+      "vertexCount": 1792,
+      "indexCount": 7488,
+      "positionByteOffset": 2508720,
+      "normalByteOffset": 2530224,
+      "uvByteOffset": 2551728,
+      "indexByteOffset": 2566064
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship polySurface1046",
+      "texture": "hull",
+      "color": "#7a838f",
+      "vertexCount": 20240,
+      "indexCount": 48624,
+      "positionByteOffset": 2581040,
+      "normalByteOffset": 2823920,
+      "uvByteOffset": 3066800,
+      "indexByteOffset": 3228720
+    },
+    {
+      "name": "group2 Corinth_Cargo_Ship pCylinder17",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 1442,
+      "indexCount": 2982,
+      "positionByteOffset": 3325968,
+      "normalByteOffset": 3343272,
+      "uvByteOffset": 3360576,
+      "indexByteOffset": 3372112
+    },
+    {
+      "name": "group2 polySurface1206 polySurface1050",
+      "texture": "thrusters",
+      "color": "#37404b",
+      "vertexCount": 652,
+      "indexCount": 1440,
+      "positionByteOffset": 3378076,
+      "normalByteOffset": 3385900,
+      "uvByteOffset": 3393724,
+      "indexByteOffset": 3398940
+    },
+    {
+      "name": "group2 polySurface1053",
+      "texture": "hull",
+      "color": "#4c5562",
+      "vertexCount": 1746,
+      "indexCount": 3060,
+      "positionByteOffset": 3401820,
+      "normalByteOffset": 3422772,
+      "uvByteOffset": 3443724,
+      "indexByteOffset": 3457692
+    },
+    {
+      "name": "group2 polySurface1172",
+      "texture": "hull",
+      "color": "#555d6a",
+      "vertexCount": 9779,
+      "indexCount": 18936,
+      "positionByteOffset": 3463812,
+      "normalByteOffset": 3581160,
+      "uvByteOffset": 3698508,
+      "indexByteOffset": 3776740
+    },
+    {
+      "name": "group2 polySurface1096",
+      "texture": "container",
+      "color": "#2e3540",
+      "vertexCount": 14800,
+      "indexCount": 30600,
+      "positionByteOffset": 3814612,
+      "normalByteOffset": 3992212,
+      "uvByteOffset": 4169812,
+      "indexByteOffset": 4288212
+    },
+    {
+      "name": "group2 polySurface1210",
+      "texture": "hull",
+      "color": "#5f6874",
+      "vertexCount": 1268,
+      "indexCount": 2340,
+      "positionByteOffset": 4349412,
+      "normalByteOffset": 4364628,
+      "uvByteOffset": 4379844,
+      "indexByteOffset": 4389988
+    },
+    {
+      "name": "group2 polySurface1212",
+      "texture": "hull",
+      "color": "#4c5562",
+      "vertexCount": 1767,
+      "indexCount": 3060,
+      "positionByteOffset": 4394668,
+      "normalByteOffset": 4415872,
+      "uvByteOffset": 4437076,
+      "indexByteOffset": 4451212
+    }
+  ],
+  "thrusters": [
+    {
+      "pos": [
+        1.3,
+        -1.55,
+        6.95
+      ],
+      "size": 1
+    },
+    {
+      "pos": [
+        -1.3,
+        -1.55,
+        6.95
+      ],
+      "size": 1
+    }
+  ]
+}
