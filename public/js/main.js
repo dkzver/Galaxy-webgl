@@ -16,12 +16,17 @@ import { partHidden } from './model-split.js';
 import { pushWireBoxCorners, pushWireSphere } from './wire.js';
 import { shieldVS, shieldFS } from './render/shield-shader.js';
 import { normalizeMaterial } from './materials.js';
+import { createEngineBridge } from './app/engine-bridge.js';
+
+const engineBridge = createEngineBridge();
+window.GalaxyEngine = engineBridge.api;
 
 const canvas = document.getElementById('scene');
 const overlay = document.getElementById('overlay');
 let overlayText = document.getElementById('overlay-text');
 
 function fail(message) {
+  engineBridge.publish('scene:error', { message });
   loadingState.error = message;
   if (window.__galaxy) window.__galaxy.error = message;
   overlay.classList.remove('hidden');
@@ -2887,6 +2892,7 @@ async function bootstrapSceneScript(document) {
     const params = new URLSearchParams(location.search);
     // Без ?scene= берём первую сцену из индекса, а не жёсткий id
     const sceneId = params.get('scene') || (await defaultSceneId());
+    engineBridge.publish('scene:loading', { sceneId });
 
     scene = await loadScene(sceneId);
 
@@ -3059,8 +3065,10 @@ async function bootstrapSceneScript(document) {
 
     // Сцена собрана и скрипты инициализированы — движок может начинать
     window.__galaxy.ready = true;
+    const readyDetail = { id: scene.id, entities: sceneEntities.length, player: playerEntity?.id || null };
+    engineBridge.publish('scene:ready', readyDetail);
     window.dispatchEvent(new CustomEvent('galaxy:scene-ready', {
-      detail: { id: scene.id, entities: sceneEntities.length, player: playerEntity?.id || null }
+      detail: readyDetail
     }));
     console.log(`[scene] ${scene.id}: сущностей ${sceneEntities.length}, добываемых ${asteroids.length}`);
     if (scene.title) document.title = `${scene.title} — GalaxyDemo`;
