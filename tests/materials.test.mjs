@@ -15,7 +15,7 @@ test('материал щита нормализуется из ассета', (
   assert.equal(material.depthWrite, false);
   assert.equal(material.uniforms.color, '#59d8ff');
   assert.equal(material.uniforms.fresnel, 3);
-  assert.equal(material.uniforms.hitRadius, 1.4);
+  assert.equal(material.uniforms.hitRadius, 0.9);
 });
 
 test('uniforms заполняются из defaults схемы', () => {

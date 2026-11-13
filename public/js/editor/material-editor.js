@@ -180,10 +180,9 @@ function drawMeshSphere() {
     gl.uniform3fv(shieldLoc.u.uHitColor, hexToRgb(state.uniforms.hitColor, [0.92, 1, 1]));
     gl.uniform1f(shieldLoc.u.uBase, Number(state.uniforms.base) || 0);
     gl.uniform1f(shieldLoc.u.uFresnel, Number(state.uniforms.fresnel) || 3);
-    gl.uniform1f(shieldLoc.u.uHitRadius, Number(state.uniforms.hitRadius) || 1.4);
+    gl.uniform1f(shieldLoc.u.uHitRadius, Number(state.uniforms.hitRadius) || 0.9);
     gl.uniform1f(shieldLoc.u.uHexScale, Number(state.uniforms.hexScale) || 6);
     gl.uniform1f(shieldLoc.u.uPatchLife, Number(state.uniforms.patchLife) || 0.35);
-    gl.uniform1f(shieldLoc.u.uRingLife, Number(state.uniforms.ringLife) || 0.3);
 
     const hitData = new Float32Array(16);
     for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;
@@ -323,7 +322,7 @@ select.addEventListener('change', () => {
 
 btnSave.addEventListener('click', () => save());
 btnTest.addEventListener('click', () => {
-  // Точка на правом борту сферы: так видно и пятно, и кольцо
+  // Точка на правом борту сферы: так видно локальное гексагональное пятно
   const direction = [0.92, 0.18, 0.35];
   const length = Math.hypot(...direction);
   state.hits.unshift({

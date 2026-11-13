@@ -2677,10 +2677,13 @@ function render(time) {
         gl.uniform3fv(shieldLoc.u.uHitColor, hexToRgb(uniforms.hitColor, [0.92, 1, 1]));
         gl.uniform1f(shieldLoc.u.uBase, Number(uniforms.base) || 0);
         gl.uniform1f(shieldLoc.u.uFresnel, Number(uniforms.fresnel) || 3);
-        gl.uniform1f(shieldLoc.u.uHitRadius, Number(uniforms.hitRadius) || 1.4);
+        gl.uniform1f(shieldLoc.u.uHitRadius, Number(uniforms.hitRadius) || 0.9);
         gl.uniform1f(shieldLoc.u.uHexScale, Number(uniforms.hexScale) || 6);
         gl.uniform1f(shieldLoc.u.uPatchLife, Number(uniforms.patchLife) || 0.35);
-        gl.uniform1f(shieldLoc.u.uRingLife, Number(uniforms.ringLife) || 0.3);
+
+        // Точки попадания из мира → в локальные координаты меша щита:
+        // шейдер строит вокруг них локальное гексагональное пятно.
+        const toShieldLocal = M4.invert(item.matrix);
 
         hitData.fill(0);
         for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;
@@ -2690,9 +2693,10 @@ function render(time) {
           const hit = hits[i];
           if (!hit?.position) continue;
 
-          hitData[i * 4] = hit.position[0];
-          hitData[i * 4 + 1] = hit.position[1];
-          hitData[i * 4 + 2] = hit.position[2];
+          const local = M4.transformPoint(toShieldLocal, hit.position);
+          hitData[i * 4] = local[0];
+          hitData[i * 4 + 1] = local[1];
+          hitData[i * 4 + 2] = local[2];
           hitData[i * 4 + 3] = Math.max(0, Number(hit.age) || 0);
         }
         gl.uniform4fv(shieldLoc.u.uHits, hitData);
@@ -2702,18 +2706,6 @@ function render(time) {
           drawShieldPart(part, M4.mul(item.matrix, part.matrix));
         }
 
-        // Пятна попаданий — поверх корпуса: оболочка почти совпадает с обшивкой,
-        // и без этого прохода глубина съедала бы вспышку
-        if (hits.length) {
-          gl.disable(gl.DEPTH_TEST);
-
-          for (const part of item.model.parts) {
-            if (partHidden(item.entity?.raw?.hiddenParts, part.name)) continue;
-            drawShieldPart(part, M4.mul(item.matrix, part.matrix));
-          }
-
-          gl.enable(gl.DEPTH_TEST);
-        }
       }
 
       gl.depthMask(true);

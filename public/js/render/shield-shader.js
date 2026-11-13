@@ -1,9 +1,14 @@
 /**
  * @fileoverview Шейдер энергетического щита.
  *
- * Оболочка почти прозрачна (база + френель на скользящих углах), а попадания
- * зажигают локальное пятно с гексагональной сеткой, ядро и кольцо.
- * До четырёх попаданий: uHits[i] = (x, y, z, age), age < 0 — слот свободен.
+ * Оболочка почти прозрачна (база + френель на скользящих углах). Попадание
+ * зажигает ЛОКАЛЬНУЮ волну непрозрачности от точки удара: фронт добегает до
+ * края маленького гексагонального пятна втрое быстрее жизни пятна
+ * (patchLife / 3), позади фронта непрозрачность плавно спадает к краю.
+ * По всей оболочке волна не идёт.
+ *
+ * До четырёх попаданий: uHits[i] = (x, y, z, age), координаты — локальные
+ * координаты меша щита, age < 0 — слот свободен.
  */
 
 export const shieldVS = `
@@ -44,7 +49,6 @@ uniform float uFresnel;
 uniform float uHitRadius;
 uniform float uHexScale;
 uniform float uPatchLife;
-uniform float uRingLife;
 uniform vec4 uHits[4];
 
 float hash21(vec2 p) {
@@ -60,6 +64,7 @@ vec2 hexLocal(vec2 p) {
   return dot(a, a) < dot(b, b) ? a : b;
 }
 
+// Гексагональная метрика: изолинии — правильные шестиугольники.
 float hexEdge(vec2 p) {
   p = abs(p);
   return max(p.x * 0.8660254 + p.y * 0.5, p.y);
@@ -81,72 +86,74 @@ void main() {
   vec3 normal = normalize(vNormal);
   vec3 view = normalize(uCamera - vWorld);
 
+  // Только обращённая к камере сторона: обратная не просвечивает сквозь корпус.
+  if (dot(normal, view) <= 0.0) discard;
+
   float facing = abs(dot(normal, view));
   float fresnel = pow(1.0 - facing, uFresnel);
   float shell = uBase + fresnel * 0.18;
 
-  // Гексагональная «кожа»: узор в осях меша, чтобы не плыл при движении
+  // Локальная плоскость гекс-сетки: выбираем ось по нормали меша.
   vec3 localNormal = normalize(vLocalNormal);
   vec3 weights = abs(localNormal) / max(1e-4, abs(localNormal.x) + abs(localNormal.y) + abs(localNormal.z));
-  vec2 hexUvX = vLocal.zy * uHexScale;
-  vec2 hexUvY = vLocal.xz * uHexScale;
-  vec2 hexUvZ = vLocal.xy * uHexScale;
 
-  float hexEdgeGlowValue = hexEdgeGlow(hexUvX) * weights.x
-    + hexEdgeGlow(hexUvY) * weights.y
-    + hexEdgeGlow(hexUvZ) * weights.z;
-  float hexFillValue = hexFill(hexUvX) * weights.x
-    + hexFill(hexUvY) * weights.y
-    + hexFill(hexUvZ) * weights.z;
-  float hexIdValue = hexId(hexUvX) * weights.x
-    + hexId(hexUvY) * weights.y
-    + hexId(hexUvZ) * weights.z;
+  vec2 uv;
+  if (weights.x >= weights.y && weights.x >= weights.z) uv = vLocal.zy;
+  else if (weights.y >= weights.z) uv = vLocal.xz;
+  else uv = vLocal.xy;
+  uv *= uHexScale;
 
-  shell += hexEdgeGlowValue * 0.36 + hexFillValue * 0.03 + hexIdValue * 0.01;
+  float hexEdgeGlowValue = hexEdgeGlow(uv);
+  float hexIdValue = hexId(uv);
 
-  float cell = hexEdgeGlowValue;
+  // Пятно — максимум по попаданиям; вне попаданий оболочка не рисуется.
+  float patch = 0.0;
+  float patchEdge = 0.0;
+  float patchId = 0.0;
+  float patchCore = 0.0;
 
-  float hits = 0.0;
-  float reveal = 0.0;
-  float speed = uHitRadius * 2.4 / max(0.05, uRingLife);
+  float radius = max(0.5, uHitRadius * uHexScale);
 
   for (int i = 0; i < 4; i++) {
     vec4 hit = uHits[i];
     if (hit.w < 0.0) continue;
 
     float age = hit.w;
-    float distanceToHit = distance(vWorld, hit.xyz);
-    float patchFade = max(0.0, 1.0 - age / max(0.05, uPatchLife));
 
-    // Слабое пятно в точке удара: основную форму даёт гекс-кожа
-    float patch = 1.0 - smoothstep(0.0, uHitRadius * 0.8, distanceToHit);
-    hits += patch * patchFade * (0.6 + cell * 0.4);
+    // Волна непрозрачности от точки попадания: фронт добегает до края
+    // пятна втрое быстрее жизни пятна (patchLife / 3). Позади фронта
+    // непрозрачность плавно спадает от центра к краю.
+    float front = min(1.0, age / max(0.02, uPatchLife / 3.0));
+    float fade = 1.0 - smoothstep(uPatchLife * 0.55, uPatchLife, age);
+    if (fade <= 0.0) continue;
 
-    // Три концентрические волны: фронт бежит по оболочке,
-    // а гекс-кожа позади него постепенно теряет непрозрачность
-    for (int k = 0; k < 3; k++) {
-      float waveAge = age - float(k) * uRingLife * 0.18;
-      if (waveAge < 0.0) continue;
+    vec2 hitUv;
+    if (weights.x >= weights.y && weights.x >= weights.z) hitUv = hit.zy;
+    else if (weights.y >= weights.z) hitUv = hit.xz;
+    else hitUv = hit.xy;
+    hitUv *= uHexScale;
 
-      float front = waveAge * speed;
-      float sinceFront = waveAge - distanceToHit / max(0.001, speed);
-      float trail = sinceFront >= 0.0
-        ? clamp(1.0 - sinceFront / max(0.05, uPatchLife), 0.0, 1.0)
-        : 0.0;
-      trail *= (k == 0 ? 1.0 : 0.65);
-      reveal = max(reveal, trail);
+    // Нормированное расстояние в гекс-метрике: 0 — центр, 1 — край пятна.
+    float distanceToHit = hexEdge(uv - hitUv) / radius;
+    float reveal = 1.0 - smoothstep(front, front + 0.25, distanceToHit);
+    float gradient = 1.0 - smoothstep(0.0, 1.0, distanceToHit);
+    float weight = reveal * gradient * fade;
 
-      float ring = 1.0 - smoothstep(0.0, uHitRadius * 0.12, abs(distanceToHit - front));
-      hits += ring * max(0.0, 1.0 - waveAge / max(0.05, uRingLife)) * (k == 0 ? 1.2 : 0.7);
-    }
+    float core = (1.0 - smoothstep(0.0, 0.18, distanceToHit)) * fade;
 
-    // Ядро вспышки в первые миллисекунды
-    float core = 1.0 - smoothstep(0.0, uHitRadius * 0.25, distanceToHit);
-    hits += core * max(0.0, 1.0 - age / max(0.05, uPatchLife * 0.4)) * 1.2;
+    patch = max(patch, weight);
+    patchEdge = max(patchEdge, weight * hexEdgeGlowValue);
+    patchId = max(patchId, weight * hexIdValue);
+    patchCore = max(patchCore, core);
   }
 
-  vec3 color = uColor * (shell * reveal) + uHitColor * hits;
-  color += vec3(0.15, 0.3, 0.38) * max(0.0, hits - 0.8);
+  // Нет попаданий — оболочка невидима, не пишем лишние пиксели.
+  if (patch <= 0.001) discard;
+
+  float skin = shell * 0.8 + patchEdge * 0.5 + patch * 0.42 + patchId * 0.05;
+  vec3 color = uColor * skin * patch * 1.8;
+  color += uHitColor * patchCore * 0.35;
+
   gl_FragColor = vec4(color, 1.0);
 }
 `;
