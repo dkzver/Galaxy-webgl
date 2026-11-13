@@ -93,6 +93,15 @@ export default {
     ctx.state.smoke = 0;
     ctx.state.muzzleSide = 0;
 
+    // Пулемёт может жить отдельным скриптом на объекте «Оружие»: тогда панель
+    // только выбирает слот, а стреляет machinegun.js (иначе двойной огонь).
+    ctx.state.machinegunDelegated = (ctx.api.entities || []).some((entity) => (entity.scripts || [])
+      .some((script) => String(script.file || '').endsWith('machinegun.js')));
+
+    // То же для ракеты: свой скрипт на объекте «Оружие» стреляет сам.
+    ctx.state.rocketDelegated = (ctx.api.entities || []).some((entity) => (entity.scripts || [])
+      .some((script) => String(script.file || '').endsWith('rocket.js')));
+
     // Кнопки HUD тоже выбирают оружие
     for (let index = 0; index < WEAPONS.length; index++) {
       ctx.api.hud?.onClick?.(`weapon-slot-${index}`, () => {
@@ -147,17 +156,27 @@ export default {
       rocket: number(ctx.params.rocketCooldown, 1.4, 0, 20)
     };
     const cooldown = state.cooldowns[weapon.id] || 0;
+    const gun = state.machinegunDelegated
+      ? ctx.api.shared?.get?.('machinegun.status')
+      : null;
+    const rocket = state.rocketDelegated
+      ? ctx.api.shared?.get?.('rocket.status')
+      : null;
 
     ctx.api.shared?.set?.('weapons.status', {
       id: weapon.id,
       mode: weapon.mode,
-      cooldown,
-      cooldownTotal: totals[weapon.id] || 0,
-      burstRemaining: state.burstRemaining,
-      burstTotal: state.burstTotal,
+      cooldown: gun && weapon.id === 'machinegun' ? gun.cooldown
+        : (rocket && weapon.id === 'rocket' ? rocket.cooldown : cooldown),
+      cooldownTotal: gun && weapon.id === 'machinegun' ? gun.cooldownTotal
+        : (rocket && weapon.id === 'rocket' ? rocket.cooldownTotal : (totals[weapon.id] || 0)),
+      burstRemaining: gun ? gun.burstRemaining : state.burstRemaining,
+      burstTotal: gun ? gun.burstTotal : state.burstTotal,
       beamPulse: state.beamPulse,
       beamHold: state.beamHold,
-      firing: state.burstRemaining > 0 || state.beamPulse > 0 || state.beamHold
+      firing: gun ? gun.firing
+        : (rocket && weapon.id === 'rocket' ? rocket.firing
+          : (state.burstRemaining > 0 || state.beamPulse > 0 || state.beamHold))
     });
   },
 
@@ -204,6 +223,7 @@ export default {
     }
 
     if (weapon.mode === 'burst') {
+      if (state.machinegunDelegated) return;
       if (state.burstRemaining > 0 || state.cooldowns.machinegun > 0) return;
 
       state.burstTotal = number(ctx.params.mgCount, 25, 1, 200);
@@ -220,6 +240,7 @@ export default {
     }
 
     if (weapon.mode === 'single') {
+      if (state.rocketDelegated) return;
       if (state.cooldowns.rocket > 0) return;
 
       this.spawnRocket(ctx);
@@ -412,14 +433,27 @@ export default {
     if (!weapon) return;
 
     const cooldown = state.cooldowns[weapon.id] || 0;
+    const rocket = state.rocketDelegated && weapon.id === 'rocket'
+      ? ctx.api.shared?.get?.('rocket.status')
+      : null;
 
     for (let index = 0; index < WEAPONS.length; index++) {
       ctx.api.hud?.setClass?.(`weapon-slot-${index}`, 'active', index === state.index);
     }
 
     let status = 'ГОТОВ';
-    if (state.burstRemaining > 0) {
+    const gun = state.machinegunDelegated && weapon.id === 'machinegun'
+      ? ctx.api.shared?.get?.('machinegun.status')
+      : null;
+
+    if (gun && gun.burstRemaining > 0) {
+      status = `ОЧЕРЕДЬ ${gun.burstTotal - gun.burstRemaining}/${gun.burstTotal}`;
+    } else if (gun && gun.cooldown > 0) {
+      status = `ПЕРЕЗАРЯДКА ${gun.cooldown.toFixed(1)} С`;
+    } else if (state.burstRemaining > 0) {
       status = `ОЧЕРЕДЬ ${state.burstTotal - state.burstRemaining}/${state.burstTotal}`;
+    } else if (rocket && rocket.cooldown > 0) {
+      status = `ПЕРЕЗАРЯДКА ${rocket.cooldown.toFixed(1)} С`;
     } else if (cooldown > 0) {
       status = `ПЕРЕЗАРЯДКА ${cooldown.toFixed(1)} С`;
     } else if (weapon.mode === 'hold' && state.beamHold) {

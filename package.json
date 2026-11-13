@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test tests/physics.test.mjs tests/mining.test.mjs tests/mining-script.test.mjs tests/glb.test.mjs tests/glb-texture.test.mjs tests/scene.test.mjs tests/camera.test.mjs tests/movement.test.mjs tests/weapons.test.mjs tests/collider-fit.test.mjs tests/rocket-asset.test.mjs tests/vfx-runtime.test.mjs tests/prefabs.test.mjs tests/projectiles.test.mjs tests/projectile-pool.test.mjs tests/bot-ai.test.mjs tests/model-split.test.mjs tests/shield.test.mjs tests/materials.test.mjs tests/reticles.test.mjs tests/picking.test.mjs tests/reticle-script.test.mjs tests/target-script.test.mjs tests/cursor-script.test.mjs tests/scene-script.test.mjs tests/skybox.test.mjs",
+    "test": "node --test tests/physics.test.mjs tests/mining.test.mjs tests/mining-script.test.mjs tests/glb.test.mjs tests/glb-texture.test.mjs tests/scene.test.mjs tests/camera.test.mjs tests/movement.test.mjs tests/weapons.test.mjs tests/machinegun.test.mjs tests/rocket.test.mjs tests/collider-fit.test.mjs tests/rocket-asset.test.mjs tests/vfx-runtime.test.mjs tests/prefabs.test.mjs tests/projectiles.test.mjs tests/projectile-pool.test.mjs tests/bot-ai.test.mjs tests/model-split.test.mjs tests/shield.test.mjs tests/materials.test.mjs tests/reticles.test.mjs tests/picking.test.mjs tests/reticle-script.test.mjs tests/target-script.test.mjs tests/cursor-script.test.mjs tests/scene-script.test.mjs tests/skybox.test.mjs",
     "build:corinth": "node tools/build-corinth.mjs",
     "build:rocket": "node tools/build-rocket.mjs",
     "textures": "python tools/prepare-textures.py"

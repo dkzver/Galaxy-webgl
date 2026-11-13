@@ -607,7 +607,9 @@ public/
         box-merger.js      покрытие и слияние боксов
         box-collider.js    сборка боксов
         sphere-packer.js   сферы и hybrid
-  scripts/weapons.js      оружие: выбор, очереди, трассеры, ракеты, HUD
+  scripts/weapons.js      панель оружия и лазеры (выбор слота, импульс, указка)
+  scripts/machinegun.js   пулемёт: массив точек вылета, очередь, трассеры
+  scripts/rocket.js       ракета: точка пуска, перезарядка, запуск префаба
   scripts/bots/vision.js  зрение бота: конус, упреждение, доворот
   scripts/bots/aim-attack.js бот-турель: захват игрока и огонь
   scripts/loading.js      скрипт загрузочного экрана: прогресс и время

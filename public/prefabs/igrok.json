@@ -66,9 +66,9 @@
           "type": "empty",
           "name": "gun-left",
           "position": [
-            0.5,
-            0.823,
-            3.286
+            -0.148,
+            0.738,
+            -3.383
           ],
           "rotation": [
             0,
@@ -83,9 +83,9 @@
           "type": "empty",
           "name": "gun-right",
           "position": [
-            -0.5,
-            0.823,
-            3.286
+            0.122,
+            0.738,
+            -3.383
           ],
           "rotation": [
             0,
@@ -111,6 +111,55 @@
           ],
           "scale": 1,
           "children": []
+        },
+        {
+          "id": "weapon-1",
+          "type": "empty",
+          "name": "Оружие",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1,
+          "children": [],
+          "scripts": [
+            {
+              "file": "machinegun.js",
+              "params": {
+                "body": "player-ship",
+                "muzzle1": "gun-left",
+                "muzzle2": "gun-right",
+                "muzzle3": "",
+                "muzzle4": "",
+                "targetDistance": 500,
+                "count": 25,
+                "interval": 0.2,
+                "cooldown": 0.8,
+                "speed": 650,
+                "life": 1.2,
+                "width": 7
+              }
+            },
+            {
+              "file": "rocket.js",
+              "params": {
+                "body": "player-ship",
+                "muzzle1": "gun-left",
+                "muzzle2": "gun-right",
+                "targetDistance": 500,
+                "cooldown": 1.4,
+                "prefab": "rocket",
+                "speed": 95,
+                "life": 6
+              }
+            }
+          ]
         },
         {
           "id": "camera-1",

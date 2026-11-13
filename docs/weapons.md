@@ -3,10 +3,16 @@
 Эта инструкция описывает, как пользоваться четырьмя видами оружия, как они устроены
 внутри и как добавить или настроить своё оружие.
 
-> **Актуально:** вся логика оружия теперь в [`public/scripts/weapons.js`](../public/scripts/weapons.js),
-> HUD — [`public/hud/weapons.html`](../public/hud/weapons.html), точки выстрела — пустые
-> объекты `gun-left` / `gun-right` на корабле. Движок только рисует эффекты через
-> `api.effects`. Разделы про внутреннее устройство старого движкового `WeaponSystem`
+> **Актуально:** логика оружия разделена по файлам. Панель выбора и лазеры —
+> [`public/scripts/weapons.js`](../public/scripts/weapons.js), пулемёт —
+> [`public/scripts/machinegun.js`](../public/scripts/machinegun.js), ракета —
+> [`public/scripts/rocket.js`](../public/scripts/rocket.js). Оба ствола висят на
+> пустом объекте «Оружие» (`weapon-1`) в префабе игрока, рядом с точками вылета
+> `gun-left` / `gun-right`. HUD — [`public/hud/weapons.html`](../public/hud/weapons.html).
+> Движок только рисует эффекты через `api.effects`. Если в сцене есть оба скрипта,
+> `weapons.js` не стреляет своими пулемётом и ракетой — только переключает слот,
+> а данные перезарядки читает из `machinegun.status` / `rocket.status`.
+> Разделы про внутреннее устройство старого движкового `WeaponSystem`
 > ниже оставлены для истории и могут не совпадать с кодом.
 
 ---
