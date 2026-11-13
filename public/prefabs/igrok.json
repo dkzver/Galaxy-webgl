@@ -64,7 +64,7 @@
         {
           "id": "gun-left",
           "type": "empty",
-          "name": "gun-left",
+          "name": "gun-top-left",
           "position": [
             -0.148,
             0.738,
@@ -81,7 +81,7 @@
         {
           "id": "gun-right",
           "type": "empty",
-          "name": "gun-right",
+          "name": "gun-top-right",
           "position": [
             0.122,
             0.738,
@@ -130,7 +130,24 @@
           "children": [],
           "scripts": [
             {
-              "file": "machinegun.js",
+              "file": "weapons/controller.js",
+              "params": {}
+            },
+            {
+              "file": "weapons/laser.js",
+              "params": {
+                "body": "player-ship",
+                "muzzle1": "laser-1",
+                "muzzle2": "",
+                "muzzle3": "",
+                "muzzle4": "",
+                "targetDistance": 500,
+                "width": 8,
+                "intensity": 2.4
+              }
+            },
+            {
+              "file": "weapons/machinegun.js",
               "params": {
                 "body": "player-ship",
                 "muzzle1": "gun-left",
@@ -147,7 +164,7 @@
               }
             },
             {
-              "file": "rocket.js",
+              "file": "weapons/rocket.js",
               "params": {
                 "body": "player-ship",
                 "muzzle1": "gun-left",
@@ -838,6 +855,48 @@
           ],
           "scale": 1,
           "skybox": "realistic-milkyway",
+          "children": []
+        },
+        {
+          "id": "empty-3",
+          "type": "empty",
+          "name": "gun-bottom-center",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "children": []
+        },
+        {
+          "id": "laser-1",
+          "type": "empty",
+          "name": "Лазер",
+          "position": [
+            0,
+            -0.545,
+            -3.477
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
           "children": []
         }
       ]

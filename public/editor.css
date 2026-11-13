@@ -264,13 +264,15 @@ button.primary:hover { border-color: var(--accent); }
 
 .tree-row.dragging { opacity: 0.45; }
 
-/* Куда встанет объект: внутрь пустого или следом за строкой */
+/* Куда встанет объект: внутрь группы, до или после строки */
 .tree-row.drop-into {
   background: #14324a;
   outline: 1px dashed var(--blue);
   outline-offset: -1px;
 }
 
+/* Куда встанет объект: до/после строки или внутрь пустой группы */
+.tree-row.drop-before { border-top: 1px solid var(--blue); }
 .tree-row.drop-after { border-bottom: 1px solid var(--blue); }
 
 .tree.drop-root { background: #0c141f; box-shadow: inset 0 0 0 1px var(--line); }

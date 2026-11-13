@@ -1,144 +1,89 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import weapons, { params } from '../public/scripts/weapons.js';
-import { M4 } from '../public/js/math.js';
+import panel from '../public/scripts/weapons.js';
 
-function makeContext(overrides = {}) {
-  const ship = { id: 'ship', matrix: M4.translation(0, 0, 0) };
-  const gunL = { id: 'gun-left', matrix: M4.translation(-10, 3, -6) };
-  const gunR = { id: 'gun-right', matrix: M4.translation(10, 3, -6) };
-  const entities = new Map([[ship.id, ship], [gunL.id, gunL], [gunR.id, gunR]]);
+function makeContext(status = null, withSlots = true) {
+  const shared = new Map();
+  if (withSlots) {
+    shared.set('weapons.slots', [
+      { id: 'pointer', key: '1', name: 'УКАЗАТЕЛЬ', mode: 'hold', statusKey: 'laser.status' },
+      { id: 'machinegun', key: '2', name: 'ПУЛЕМЁТ', mode: 'burst', statusKey: 'machinegun.status' },
+      { id: 'rocket', key: '3', name: 'РАКЕТА', mode: 'single', statusKey: 'rocket.status' }
+    ]);
+  }
 
-  const effects = { beam: [], tracer: [], smoke: [], spark: [] };
-  const hud = { text: {}, classes: [], visible: false };
+  if (status) shared.set('weapons.status', status);
+
+  const hud = { text: {}, classes: [], clicks: 0, visible: false };
 
   const ctx = {
-    params: {
-      body: 'ship', muzzleLeft: 'gun-left', muzzleRight: 'gun-right', targetDistance: 500,
-      laserDuration: 0.45, pointerWidth: 8,
-      mgCount: 25, mgInterval: 0.2, mgCooldown: 0.8, mgSpeed: 650, mgLife: 1.2,
-      rocketCooldown: 1.4, rocketSpeed: 95, rocketLife: 6,
-      ...overrides
-    },
-    entity: { id: 'player-ship' },
+    params: {},
     state: {},
     api: {
       claim: () => {},
-      find: (id) => entities.get(id) || null,
-      player: ship,
-      aimTarget: () => [0, 0, -100],
-      input: { mouse: { down: false }, keysDown: new Set() },
-      effects: {
-        beam: (id, data) => { effects.beam.push({ id, ...data }); return id; },
-        tracer: (id, data) => { effects.tracer.push({ id, ...data }); return id; },
-        smoke: (id, data) => { effects.smoke.push({ id, ...data }); return id; },
-        spark: (id, data) => { effects.spark.push({ id, ...data }); return id; },
-        clear: () => {}
+      shared: {
+        get: (key) => shared.get(key) ?? null,
+        set: (key, value) => { shared.set(key, value); return value; },
+        delete: (key) => shared.delete(key)
       },
       hud: {
         isVisible: () => hud.visible,
         setText: (id, text) => { hud.text[id] = text; return true; },
         setClass: (id, name, on) => { hud.classes.push([id, name, on]); return true; },
-        onClick: () => () => {}
+        onClick: () => { hud.clicks += 1; return () => {}; }
       }
     }
   };
 
-  return { ctx, effects, hud };
+  return { ctx, shared, hud };
 }
 
-test('weapons.js объявляет точки выстрела и параметры', () => {
-  assert.equal(params.muzzleLeft.type, 'entity');
-  assert.equal(params.muzzleRight.type, 'entity');
-  assert.equal(params.mgCount.default, 25);
-  assert.equal(params.rocketCooldown.default, 1.4);
-  assert.equal(params.rocketPrefab.default, 'rocket');
-  assert.equal(params.rocketPrefab.type, 'text');
+test('панель рисует активный слот и очередь пулемёта', () => {
+  const { ctx, hud } = makeContext({ index: 1, mode: 'burst', burstRemaining: 20, burstTotal: 25 });
+
+  panel.init(ctx);
+  panel.update(ctx);
+
+  assert.ok(hud.classes.some(([id, name, on]) => id === 'weapon-slot-1' && name === 'active' && on));
+  assert.ok(hud.classes.some(([id, name, on]) => id === 'weapon-slot-0' && name === 'active' && !on));
+  assert.equal(hud.text['weapon-status'], 'ОЧЕРЕДЬ 5/25');
 });
 
-test('лазер рисует луч из левой точки выстрела', () => {
-  const { ctx, effects, hud } = makeContext();
-  weapons.init(ctx);
-  ctx.api.input.mouse.down = true;
-  weapons.update(ctx, 1 / 60);
+test('панель показывает перезарядку ракеты', () => {
+  const { ctx, hud } = makeContext({ index: 2, mode: 'single', cooldown: 1.4 });
 
-  assert.equal(effects.beam.length, 1);
-  assert.equal(effects.beam[0].from[0], -10);
-  assert.equal(ctx.state.beamPulse > 0, true);
+  panel.init(ctx);
+  panel.update(ctx);
+
+  assert.equal(hud.text['weapon-status'], 'ПЕРЕЗАРЯДКА 1.4 С');
+});
+
+test('панель показывает активный луч', () => {
+  const { ctx, hud } = makeContext({ index: 0, mode: 'hold', active: true });
+
+  panel.init(ctx);
+  panel.update(ctx);
+
+  assert.equal(hud.text['weapon-status'], 'ЛУЧ АКТИВЕН');
+});
+
+test('без weapons.status панель пишет ГОТОВ и не падает', () => {
+  const { ctx, hud } = makeContext(null, false);
+
+  panel.init(ctx);
+  panel.update(ctx);
+
   assert.equal(hud.text['weapon-status'], 'ГОТОВ');
 });
 
-test('пулемёт стреляет очередью и обновляет HUD', () => {
-  const { ctx, effects, hud } = makeContext();
-  weapons.init(ctx);
-  ctx.state.index = 2;
-  ctx.api.input.mouse.down = true;
-  weapons.update(ctx, 1 / 60);
+test('панель не читает ввод и не публикует статусы', () => {
+  const { ctx, shared, hud } = makeContext({ index: 0, mode: 'hold', active: false });
+  const before = JSON.stringify([...shared.entries()]);
 
-  assert.equal(ctx.state.burstRemaining, 24);
-  assert.equal(ctx.state.burstTotal, 25);
-  assert.ok(effects.tracer.length >= 1);
-  assert.match(hud.text['weapon-status'], /ОЧЕРЕДЬ 1\/25/);
+  panel.init(ctx);
+  panel.update(ctx);
 
-  for (let i = 0; i < 70; i++) weapons.update(ctx, 1 / 60);
-  assert.ok(ctx.state.burstRemaining < 24, 'очередь не продвинулась');
-});
-
-test('без системы снарядов ракета не рисуется движком', () => {
-  const { ctx, effects, hud } = makeContext();
-  weapons.init(ctx);
-  ctx.state.index = 3;
-  ctx.api.input.mouse.down = true;
-  weapons.update(ctx, 1 / 60);
-
-  // Процедурного запасного пути больше нет: только перезарядка и статус
-  assert.equal(ctx.state.rockets, undefined);
-  assert.ok(ctx.state.cooldowns.rocket > 0);
-  assert.match(hud.text['weapon-status'], /ПЕРЕЗАРЯДКА/);
-  assert.equal(
-    effects.beam.length + effects.tracer.length + effects.smoke.length + effects.spark.length,
-    0,
-    'без снарядов движок не должен рисовать ракету'
-  );
-});
-
-test('выбор оружия клавишей переключает активный слот', () => {
-  const { ctx, hud } = makeContext();
-  weapons.init(ctx);
-  ctx.api.input.keysDown.add('Digit3');
-  weapons.update(ctx, 1 / 60);
-
-  assert.equal(ctx.state.index, 2);
-  assert.ok(hud.classes.some(([id, name, on]) => id === 'weapon-slot-2' && name === 'active' && on));
-});
-
-test('ракета уходит в префаб, когда есть система снарядов', () => {
-  const { ctx, effects } = makeContext();
-  const fired = [];
-
-  // Появился api.projectiles — процедурный эффект больше не создаётся
-  ctx.api.projectiles = {
-    fire: (options) => {
-      fired.push(options);
-      return { active: true };
-    },
-    stats: () => ({})
-  };
-
-  weapons.init(ctx);
-  ctx.state.index = 3;
-  ctx.api.input.mouse.down = true;
-  weapons.update(ctx, 1 / 60);
-
-  assert.equal(fired.length, 1);
-  assert.equal(fired[0].prefab, 'rocket');
-  assert.deepEqual(fired[0].from, [-10, 3, -6]);
-  assert.equal(fired[0].speed, 95);
-  assert.equal(fired[0].life, 6);
-  assert.equal(fired[0].owner.id, 'ship');
-
-  assert.equal(effects.beam.length + effects.tracer.length + effects.smoke.length + effects.spark.length, 0);
-  assert.equal(ctx.state.rockets, undefined);
-  assert.ok(ctx.state.cooldowns.rocket > 0);
+  assert.equal(hud.clicks, 0, 'клики HUD обрабатывает контроллер');
+  assert.equal(JSON.stringify([...shared.entries()]), before, 'панель ничего не пишет в shared');
 });

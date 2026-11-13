@@ -7,7 +7,14 @@
 // Если в сцене есть weapons.js (панель оружия), ракета стреляет только на
 // выбранном слоте «РАКЕТА»: панель владеет переключением, скрипт — пуском.
 
-import { quatRotate } from '../js/math.js';
+import {
+  collectMuzzles,
+  muzzlePosition,
+  normalize,
+  pickMuzzle as nextMuzzle,
+  sub,
+  targetPoint
+} from './muzzles.js';
 
 export const params = {
   body: { label: 'Корабль', default: '', type: 'entity' },
@@ -28,42 +35,17 @@ function number(value, fallback, min, max) {
   return Math.min(max, Math.max(min, result));
 }
 
-function worldPosition(entity) {
-  const matrix = entity?.matrix;
-  if (matrix) return [matrix[12], matrix[13], matrix[14]];
-  return (entity?.position || [0, 0, 0]).slice();
-}
-
-function add(a, b) {
-  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-}
-
-function sub(a, b) {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-}
-
-function scale(a, k) {
-  return [a[0] * k, a[1] * k, a[2] * k];
-}
-
-function normalize(a) {
-  const length = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / length, a[1] / length, a[2] / length];
-}
-
 export default {
   init(ctx) {
     ctx.api.claim('rocket');
 
     const state = ctx.state;
     state.cooldown = 0;
-    state.firing = false;
     state.side = 0;
     state.shots = 0;
 
     // Массив точек пуска: порядок сохраняем, пустые отбрасываем.
-    state.muzzles = [ctx.params.muzzle1, ctx.params.muzzle2]
-      .filter((id) => typeof id === 'string' && id.length > 0);
+    state.muzzles = collectMuzzles(ctx.params);
 
     // Панель оружия сама решает, когда выбран слот «ракета».
     state.panel = (ctx.api.entities || []).some((entity) => (entity.scripts || [])
@@ -79,52 +61,27 @@ export default {
 
     state.cooldown = Math.max(0, state.cooldown - step);
 
-    const blocked = Boolean(ctx.api.hud?.isVisible?.('hud-menu'));
-    const allowed = !blocked && this.allowed(ctx);
-    const mouseDown = Boolean(ctx.api.input?.mouse?.down) && allowed;
-    const pressed = mouseDown && !state.firing;
-    state.firing = mouseDown;
-
-    if (pressed) this.fire(ctx);
-
     this.publishStatus(ctx);
     this.updateHud(ctx);
   },
 
-  /** Панель оружия есть — пускаем только на выбранном слоте «ракета». */
-  allowed(ctx) {
-    if (!ctx.state.panel) return true;
-    const status = ctx.api.shared?.get?.('weapons.status');
-    return status?.id === 'rocket';
+  /** Команда от панели оружия: нажали ЛКМ — пуск. */
+  onEvent(ctx, event) {
+    if (event.type !== 'weapon.trigger') return;
+    if (event.weapon !== 'rocket') return;
+    if (!event.down) return;
+
+    this.fire(ctx);
   },
 
-  /** Точка пуска по кругу: 1-я, 2-я, затем снова 1-я. */
+  /** Точка пуска по кругу на текущий пуск. */
   muzzle(ctx) {
-    const state = ctx.state;
-    const ids = state.muzzles || [];
-    const id = ids.length ? ids[state.side % ids.length] : null;
-
-    state.side += 1;
-
-    const entity = id ? ctx.api.find?.(id) : null;
-    if (entity) return worldPosition(entity);
-
-    const body = ctx.api.find?.(ctx.params.body) || ctx.api.player;
-    if (!body) return [0, 0, 0];
-
-    const forward = quatRotate(body.quaternion || [0, 0, 0, 1], [0, 0, -1]);
-    return add(worldPosition(body), scale(forward, 5));
+    const id = nextMuzzle(ctx.state);
+    return muzzlePosition(ctx, id);
   },
 
   target(ctx) {
-    const aim = ctx.api.aimTarget?.();
-    if (Array.isArray(aim) && aim.length >= 3) return aim.slice(0, 3);
-
-    const body = ctx.api.find?.(ctx.params.body) || ctx.api.player;
-    if (!body) return null;
-
-    const forward = quatRotate(body.quaternion || [0, 0, 0, 1], [0, 0, -1]);
-    return add(worldPosition(body), scale(forward, number(ctx.params.targetDistance, 500, 20, 5000)));
+    return targetPoint(ctx, number(ctx.params.targetDistance, 500, 20, 5000));
   },
 
   fire(ctx) {
@@ -170,7 +127,8 @@ export default {
       cooldown: state.cooldown,
       cooldownTotal: number(ctx.params.cooldown, 1.4, 0, 20),
       shots: state.shots,
-      firing: state.cooldown > 0
+      firing: state.cooldown > 0,
+      busy: false
     });
   },
 

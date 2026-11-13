@@ -597,6 +597,10 @@ canvas.addEventListener('auxclick', (event) => {
 
 window.addEventListener('mousedown', (event) => {
   if (event.button === 0) {
+    // Клик по HUD (панель оружия, меню) — это интерфейс, а не выстрел.
+    // Слои HUD лежат в #scene-hud; сама сцена — canvas.
+    if (event.target?.closest?.('#scene-hud')) return;
+
     mouse.down = true;
     handlePointerClick(event);
   }
@@ -2420,6 +2424,7 @@ function cameraBackgroundRgb() {
 }
 
 function render(time) {
+  window.__frames = (window.__frames || 0) + 1;
   const dpr = resize();
   // На паузе мир замирает: корабль не движется и не вращается, камера не крутится,
   // но настройки продолжают применяться к кадру

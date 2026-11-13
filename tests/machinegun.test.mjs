@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import machinegun, { params } from '../public/scripts/machinegun.js';
-import weapons from '../public/scripts/weapons.js';
+import machinegun, { params } from '../public/scripts/weapons/machinegun.js';
 import { M4 } from '../public/js/math.js';
 
 function makeContext(overrides = {}, options = {}) {
@@ -42,7 +41,6 @@ function makeContext(overrides = {}, options = {}) {
       find: (id) => entities.find((entity) => entity.id === id) || null,
       player: ship,
       aimTarget: () => [0, 0, -200],
-      input: { mouse: { down: false }, keysDown: new Set() },
       emit: () => {},
       shared: {
         get: (key) => shared.get(key) ?? null,
@@ -68,6 +66,11 @@ function makeContext(overrides = {}, options = {}) {
   return { ctx, effects, hud, shared };
 }
 
+/** Команда от панели оружия. */
+function trigger(ctx, down, weapon = 'machinegun') {
+  machinegun.onEvent(ctx, { type: 'weapon.trigger', weapon, down });
+}
+
 test('machinegun.js объявляет массив точек вылета', () => {
   assert.equal(params.muzzle1.type, 'entity');
   assert.equal(params.muzzle2.type, 'entity');
@@ -84,10 +87,11 @@ test('точки вылета собираются в массив, пустые
   assert.deepEqual(ctx.state.muzzles, ['gun-left', 'gun-right', 'gun-left']);
 });
 
-test('очередь стартует с первой точки и чередует стволы', () => {
+test('по команде press очередь стартует и чередует стволы', () => {
   const { ctx, effects, shared } = makeContext();
   machinegun.init(ctx);
-  ctx.api.input.mouse.down = true;
+
+  trigger(ctx, true);
   machinegun.update(ctx, 1 / 60);
 
   assert.equal(ctx.state.burstRemaining, 24);
@@ -96,15 +100,14 @@ test('очередь стартует с первой точки и череду
   assert.equal(shared.get('machinegun.status').burstTotal, 25);
 
   for (let i = 0; i < 15; i++) machinegun.update(ctx, 1 / 60);
-  const started = effects.tracer.filter((entry) => entry.from[0] === entry.to[0] && entry.from[2] === entry.to[2]);
   assert.ok(effects.tracer.some((entry) => entry.from[0] === 10), 'второй ствол тоже стреляет');
-  assert.ok(started.length >= 1);
 });
 
 test('после очереди включается перезарядка', () => {
   const { ctx, shared } = makeContext({ count: 3, interval: 0.02, cooldown: 0.5 });
   machinegun.init(ctx);
-  ctx.api.input.mouse.down = true;
+
+  trigger(ctx, true);
   machinegun.update(ctx, 1 / 60);
   for (let i = 0; i < 20; i++) machinegun.update(ctx, 1 / 60);
 
@@ -113,45 +116,45 @@ test('после очереди включается перезарядка', ()
   assert.ok(shared.get('machinegun.status').cooldown > 0);
 });
 
-test('с панелью оружия стреляет только на слоте «пулемёт»', () => {
-  const { ctx, effects, shared } = makeContext({}, { withPanel: true });
+test('команда release не останавливает уже начатую очередь', () => {
+  const { ctx } = makeContext({ count: 5, interval: 0.1 });
   machinegun.init(ctx);
-  assert.equal(ctx.state.panel, true);
 
-  // Панель выбрала лазер — пулемёт молчит
-  shared.set('weapons.status', { id: 'laser' });
-  ctx.api.input.mouse.down = true;
+  trigger(ctx, true);
   machinegun.update(ctx, 1 / 60);
-  assert.equal(ctx.state.burstRemaining, 0);
-  assert.equal(effects.tracer.length, 0);
+  const afterPress = ctx.state.burstRemaining;
 
-  // Выбрали пулемёт — очередь пошла
-  shared.set('weapons.status', { id: 'machinegun' });
-  machinegun.update(ctx, 1 / 60);
-  assert.equal(ctx.state.burstRemaining, 24);
+  trigger(ctx, false);
+  for (let i = 0; i < 6; i++) machinegun.update(ctx, 1 / 60);
+
+  assert.ok(ctx.state.burstRemaining < afterPress, 'очередь достреливает');
 });
 
-test('weapons.js не стреляет очередью, если пулемёт вынесен в скрипт', () => {
-  const { ctx, effects } = makeContext({ mgCount: 25 }, { withGunScript: true });
-  weapons.init(ctx);
-  assert.equal(ctx.state.machinegunDelegated, true);
+test('команда другому оружию не запускает очередь', () => {
+  const { ctx, effects } = makeContext();
+  machinegun.init(ctx);
 
-  ctx.state.index = 2;
-  ctx.api.input.mouse.down = true;
-  weapons.update(ctx, 1 / 60);
+  trigger(ctx, true, 'laser');
+  machinegun.update(ctx, 1 / 60);
 
-  assert.equal(ctx.state.burstRemaining, 0, 'своих трассеров панель не создаёт');
+  assert.equal(ctx.state.burstRemaining, 0);
   assert.equal(effects.tracer.length, 0);
 });
 
-test('главное меню отменяет очередь', () => {
-  const { ctx } = makeContext();
+test('точка вылета читается заново на каждый выстрел', () => {
+  const { ctx, effects } = makeContext({ muzzle2: '', interval: 0.05 });
   machinegun.init(ctx);
-  ctx.api.input.mouse.down = true;
-  machinegun.update(ctx, 1 / 60);
-  assert.equal(ctx.state.burstRemaining, 24);
 
-  ctx.api.hud.isVisible = () => true;
+  const spawns = () => effects.tracer.filter((entry) => entry.from[0] === entry.to[0]
+    && entry.from[2] === entry.to[2]);
+
+  trigger(ctx, true);
   machinegun.update(ctx, 1 / 60);
-  assert.equal(ctx.state.burstRemaining, 0);
+  assert.equal(spawns()[0].from[0], -10);
+
+  // Корабль повернулся — ствол уехал вместе с ним.
+  ctx.api.find('gun-left').matrix = M4.translation(-12, 3, -6);
+  for (let i = 0; i < 4; i++) machinegun.update(ctx, 1 / 60);
+
+  assert.ok(spawns().some((entry) => entry.from[0] === -12), 'следующий выстрел из новой позиции');
 });

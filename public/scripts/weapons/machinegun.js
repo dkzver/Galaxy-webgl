@@ -8,7 +8,16 @@
 // Если в сцене есть weapons.js (панель оружия), пулемёт работает только при
 // выбранном слоте «ПУЛЕМЁТ»: панель владеет переключением, скрипт — стрельбой.
 
-import { quatRotate } from '../js/math.js';
+import {
+  add,
+  collectMuzzles,
+  muzzlePosition,
+  normalize,
+  pickMuzzle as nextMuzzle,
+  scale,
+  sub,
+  targetPoint
+} from './muzzles.js';
 
 export const params = {
   body: { label: 'Корабль', default: '', type: 'entity' },
@@ -39,29 +48,6 @@ function number(value, fallback, min, max) {
   return Math.min(max, Math.max(min, result));
 }
 
-function worldPosition(entity) {
-  const matrix = entity?.matrix;
-  if (matrix) return [matrix[12], matrix[13], matrix[14]];
-  return (entity?.position || [0, 0, 0]).slice();
-}
-
-function add(a, b) {
-  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-}
-
-function sub(a, b) {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-}
-
-function scale(a, k) {
-  return [a[0] * k, a[1] * k, a[2] * k];
-}
-
-function normalize(a) {
-  const length = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / length, a[1] / length, a[2] / length];
-}
-
 export default {
   init(ctx) {
     ctx.api.claim('machinegun');
@@ -71,14 +57,12 @@ export default {
     state.burstTotal = 0;
     state.burstTimer = 0;
     state.cooldown = 0;
-    state.firing = false;
     state.side = 0;
     state.shots = 0;
     state.tracers = new Map();
 
     // Массив точек вылета: пустые значения отбрасываем, порядок сохраняем.
-    state.muzzles = [ctx.params.muzzle1, ctx.params.muzzle2, ctx.params.muzzle3, ctx.params.muzzle4]
-      .filter((id) => typeof id === 'string' && id.length > 0);
+    state.muzzles = collectMuzzles(ctx.params);
 
     // Панель оружия (weapons.js) сама решает, когда выбран пулемёт.
     state.panel = (ctx.api.entities || []).some((entity) => (entity.scripts || [])
@@ -94,33 +78,22 @@ export default {
 
     state.cooldown = Math.max(0, state.cooldown - step);
 
+    // Меню сцены отменяет остаток очереди; ввод приходит только от панели.
     const blocked = Boolean(ctx.api.hud?.isVisible?.('hud-menu'));
-    if (blocked) {
-      state.burstRemaining = 0;
-      state.firing = false;
-      this.updateTracers(ctx, step);
-      this.publishStatus(ctx);
-      this.updateHud(ctx);
-      return;
-    }
+    if (blocked) state.burstRemaining = 0;
 
-    const allowed = this.allowed(ctx);
-    const mouseDown = Boolean(ctx.api.input?.mouse?.down) && allowed;
-    const pressed = mouseDown && !state.firing;
-    state.firing = mouseDown;
-
-    if (pressed) this.startBurst(ctx);
     this.updateBurst(ctx, step);
     this.updateTracers(ctx, step);
     this.publishStatus(ctx);
     this.updateHud(ctx);
   },
 
-  /** Панель оружия есть — стреляем только на выбранном слоте «пулемёт». */
-  allowed(ctx) {
-    if (!ctx.state.panel) return true;
-    const status = ctx.api.shared?.get?.('weapons.status');
-    return status?.id === 'machinegun';
+  /** Команда от панели оружия: нажали ЛКМ. Отпускание очередь не останавливает. */
+  onEvent(ctx, event) {
+    if (event.type !== 'weapon.trigger') return;
+    if (event.weapon !== 'machinegun') return;
+
+    if (event.down) this.startBurst(ctx);
   },
 
   startBurst(ctx) {
@@ -158,33 +131,14 @@ export default {
     }
   },
 
-  /** Точка вылета по кругу: 1-я, 2-я, … затем снова 1-я. */
+  /** Точка вылета по кругу на текущий выстрел. */
   muzzle(ctx) {
-    const state = ctx.state;
-    const ids = state.muzzles || [];
-    const id = ids.length ? ids[state.side % ids.length] : null;
-
-    state.side += 1;
-
-    const entity = id ? ctx.api.find?.(id) : null;
-    if (entity) return worldPosition(entity);
-
-    const body = ctx.api.find?.(ctx.params.body) || ctx.api.player;
-    if (!body) return [0, 0, 0];
-
-    const forward = quatRotate(body.quaternion || [0, 0, 0, 1], [0, 0, -1]);
-    return add(worldPosition(body), scale(forward, 5));
+    const id = nextMuzzle(ctx.state);
+    return muzzlePosition(ctx, id);
   },
 
   target(ctx) {
-    const aim = ctx.api.aimTarget?.();
-    if (Array.isArray(aim) && aim.length >= 3) return aim.slice(0, 3);
-
-    const body = ctx.api.find?.(ctx.params.body) || ctx.api.player;
-    if (!body) return null;
-
-    const forward = quatRotate(body.quaternion || [0, 0, 0, 1], [0, 0, -1]);
-    return add(worldPosition(body), scale(forward, number(ctx.params.targetDistance, 500, 20, 5000)));
+    return targetPoint(ctx, number(ctx.params.targetDistance, 500, 20, 5000));
   },
 
   spawnTracer(ctx) {
@@ -288,7 +242,8 @@ export default {
       burstTotal: state.burstTotal,
       cooldown: state.cooldown,
       cooldownTotal: number(ctx.params.cooldown, 0.8, 0, 10),
-      firing: state.burstRemaining > 0
+      firing: state.burstRemaining > 0,
+      busy: state.burstRemaining > 0
     });
   },
 

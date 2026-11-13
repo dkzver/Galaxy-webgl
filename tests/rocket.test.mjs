@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import rocket, { params } from '../public/scripts/rocket.js';
-import weapons from '../public/scripts/weapons.js';
+import rocket, { params } from '../public/scripts/weapons/rocket.js';
 import { M4 } from '../public/js/math.js';
 
 function makeContext(overrides = {}, options = {}) {
@@ -37,7 +36,6 @@ function makeContext(overrides = {}, options = {}) {
       find: (id) => entities.find((entity) => entity.id === id) || null,
       player: ship,
       aimTarget: () => [0, 0, -100],
-      input: { mouse: { down: false }, keysDown: new Set() },
       emit: () => {},
       shared: {
         get: (key) => shared.get(key) ?? null,
@@ -63,6 +61,11 @@ function makeContext(overrides = {}, options = {}) {
   return { ctx, fired, hud, shared };
 }
 
+/** Команда от панели оружия. */
+function trigger(ctx, down, weapon = 'rocket') {
+  rocket.onEvent(ctx, { type: 'weapon.trigger', weapon, down });
+}
+
 test('rocket.js объявляет параметры пуска', () => {
   assert.equal(params.muzzle1.type, 'entity');
   assert.equal(params.muzzle2.type, 'entity');
@@ -71,10 +74,11 @@ test('rocket.js объявляет параметры пуска', () => {
   assert.equal(params.cooldown.default, 1.4);
 });
 
-test('ракета уходит в префаб из первой точки пуска', () => {
+test('по команде press ракета уходит в префаб из первой точки пуска', () => {
   const { ctx, fired, shared } = makeContext();
   rocket.init(ctx);
-  ctx.api.input.mouse.down = true;
+
+  trigger(ctx, true);
   rocket.update(ctx, 1 / 60);
 
   assert.equal(fired.length, 1);
@@ -89,15 +93,18 @@ test('ракета уходит в префаб из первой точки п�
 test('вторая ракета ждёт перезарядку, следующая точка пуска чередуется', () => {
   const { ctx, fired } = makeContext({ cooldown: 0.5 });
   rocket.init(ctx);
-  ctx.api.input.mouse.down = true;
-  rocket.update(ctx, 1 / 60);
-  rocket.update(ctx, 1 / 60);
+
+  trigger(ctx, true);
+  assert.equal(fired.length, 1);
+
+  // Пока перезарядка не прошла, повторный press игнорируется.
+  trigger(ctx, false);
+  trigger(ctx, true);
   assert.equal(fired.length, 1, 'во время перезарядки не пускаем');
 
-  ctx.api.input.mouse.down = false;
   for (let i = 0; i < 40; i++) rocket.update(ctx, 1 / 60);
-  ctx.api.input.mouse.down = true;
-  rocket.update(ctx, 1 / 60);
+  trigger(ctx, false);
+  trigger(ctx, true);
 
   assert.equal(fired.length, 2);
   assert.deepEqual(fired[1].from, [10, 3, -6], 'второй пуск из gun-right');
@@ -107,36 +114,36 @@ test('без системы снарядов выстрела нет, но пе�
   const { ctx, shared } = makeContext();
   delete ctx.api.projectiles;
   rocket.init(ctx);
-  ctx.api.input.mouse.down = true;
+
+  trigger(ctx, true);
   rocket.update(ctx, 1 / 60);
 
   assert.ok(shared.get('rocket.status').cooldown > 0);
 });
 
-test('с панелью оружия пускает только на слоте «ракета»', () => {
-  const { ctx, fired, shared } = makeContext({}, { withPanel: true });
+test('команда другому оружию не пускает ракету', () => {
+  const { ctx, fired } = makeContext();
   rocket.init(ctx);
-  assert.equal(ctx.state.panel, true);
 
-  shared.set('weapons.status', { id: 'laser' });
-  ctx.api.input.mouse.down = true;
+  trigger(ctx, true, 'machinegun');
   rocket.update(ctx, 1 / 60);
+
   assert.equal(fired.length, 0);
-
-  shared.set('weapons.status', { id: 'rocket' });
-  rocket.update(ctx, 1 / 60);
-  assert.equal(fired.length, 1);
 });
 
-test('weapons.js не пускает ракету, если она вынесена в скрипт', () => {
-  const { ctx, fired } = makeContext({ rocketCooldown: 1.4 }, { withRocketScript: true });
-  ctx.api.entities.push({ id: 'weapon-1', scripts: [{ file: 'machinegun.js' }] });
-  weapons.init(ctx);
-  assert.equal(ctx.state.rocketDelegated, true);
+test('точка пуска читается заново на каждый пуск', () => {
+  const { ctx, fired } = makeContext({ muzzle2: '', cooldown: 0.1 });
+  rocket.init(ctx);
 
-  ctx.state.index = 3;
-  ctx.api.input.mouse.down = true;
-  weapons.update(ctx, 1 / 60);
+  trigger(ctx, true);
+  assert.deepEqual(fired[0].from, [-10, 3, -6]);
 
-  assert.equal(fired.length, 0, 'панель не создаёт свою ракету');
+  trigger(ctx, false);
+  for (let i = 0; i < 10; i++) rocket.update(ctx, 1 / 60);
+
+  // Корабль повернулся — ствол уехал вместе с ним.
+  ctx.api.find('gun-left').matrix = M4.translation(10, 3, -6);
+  trigger(ctx, true);
+
+  assert.deepEqual(fired[1].from, [10, 3, -6]);
 });

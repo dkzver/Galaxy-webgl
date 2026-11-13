@@ -20,6 +20,7 @@ import { shieldVS, shieldFS } from '../render/shield-shader.js';
 import { normalizeMaterial } from '../materials.js';
 import { RETICLE_DEFAULTS } from '../reticles.js';
 import { createReticleView } from '../reticle-view.js';
+import { moveNode } from './order.js';
 
 /* --------------------------------- DOM ----------------------------------- */
 
@@ -548,6 +549,30 @@ const TYPE_LABEL = { empty: 'группа', camera: 'камера', effect: 'э�
 
 let draggedId = null;
 
+/** Куда встанет объект при перетаскивании: до/после строки или внутрь группы. */
+function dropModeFor(row, raw, clientY) {
+  const rect = row.getBoundingClientRect();
+  const ratio = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
+
+  if (raw.type === 'empty') {
+    if (ratio < 0.32) return 'before';
+    if (ratio > 0.68) return 'after';
+    return 'into';
+  }
+
+  return ratio < 0.5 ? 'before' : 'after';
+}
+
+function markDrop(row, mode) {
+  row.classList.toggle('drop-before', mode === 'before');
+  row.classList.toggle('drop-after', mode === 'after');
+  row.classList.toggle('drop-into', mode === 'into');
+}
+
+function clearDropMarks(row) {
+  row.classList.remove('drop-before', 'drop-after', 'drop-into');
+}
+
 function renderTree() {
   treeEl.innerHTML = '';
   if (!state.doc) return;
@@ -612,7 +637,8 @@ function renderTree() {
         rebuild().catch((err) => setStatus(err.message, true));
       });
 
-      // Тянем на пустой — вложим внутрь, на любую строку — поставим следом
+      // Тянем на верхнюю кромку — поставить до, на нижнюю — после,
+      // в середину пустой группы — вложить внутрь.
       row.addEventListener('dragstart', (event) => {
         draggedId = raw.id;
         row.classList.add('dragging');
@@ -624,25 +650,28 @@ function renderTree() {
         renderTree();
       });
       row.addEventListener('dragover', (event) => {
-        if (!canReparent(draggedId, raw.id)) return;
+        const mode = dropModeFor(row, raw, event.clientY);
+        if (!canReparent(draggedId, raw.id, mode)) return;
+
         event.preventDefault();
         event.stopPropagation();
-        row.classList.add(raw.type === 'empty' ? 'drop-into' : 'drop-after');
+        markDrop(row, mode);
       });
-      row.addEventListener('dragleave', () => row.classList.remove('drop-into', 'drop-after'));
+      row.addEventListener('dragleave', () => clearDropMarks(row));
       row.addEventListener('drop', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        row.classList.remove('drop-into', 'drop-after');
+        clearDropMarks(row);
         if (draggedId === raw.id) return;
 
-        const reason = reparentBlockedReason(draggedId, raw.id);
+        const mode = dropModeFor(row, raw, event.clientY);
+        const reason = reparentBlockedReason(draggedId, raw.id, mode);
         if (reason) {
           setStatus(reason, true);
           return;
         }
 
-        reparent(draggedId, raw.id);
+        reparent(draggedId, raw.id, mode);
       });
 
       treeEl.append(row);
@@ -667,9 +696,9 @@ function renderTree() {
     event.preventDefault();
     treeEl.classList.remove('drop-root');
 
-    const reason = reparentBlockedReason(draggedId, null);
+    const reason = reparentBlockedReason(draggedId, null, 'after');
     if (reason) return;
-    reparent(draggedId, null);
+    reparent(draggedId, null, 'after');
   };
 }
 
@@ -705,28 +734,33 @@ function hasDynamicBody(raw) {
   return (raw.children || []).some(hasDynamicBody);
 }
 
-/** Почему перенос запрещён; null — можно. */
-function reparentBlockedReason(sourceId, targetId) {
+/** Почему перенос запрещён; null — можно. mode: before / after / into. */
+function reparentBlockedReason(sourceId, targetId, mode = 'after') {
   if (!sourceId) return 'Нечего переносить';
-  if (sourceId === targetId) return 'Объект нельзя вложить сам в себя';
+  if (sourceId === targetId) return 'Объект нельзя поставить рядом с самим собой';
 
   const source = findRaw(state.doc.entities, sourceId);
   if (!source) return 'Объект не найден';
-  if (!targetId) return null;
+
+  if (!targetId) {
+    return mode === 'after' ? null : 'В корень можно только в конец списка';
+  }
 
   const target = findRaw(state.doc.entities, targetId);
   if (!target) return 'Цель не найдена';
 
   // Внутрь собственного поддерева нельзя: получится цикл в графе сцены
   if (containsRaw(source.raw, target.raw.id)) return 'Нельзя вложить объект в собственный дочерний узел';
-  if (target.raw.type !== 'empty') return null;
 
+  if (mode !== 'into') return null;
+
+  if (target.raw.type !== 'empty') return 'Внутрь можно только группу';
   if (hasDynamicBody(source.raw)) return 'Динамическое тело нельзя вложить в группу — держите его на верхнем уровне';
   return null;
 }
 
-function canReparent(sourceId, targetId) {
-  return reparentBlockedReason(sourceId, targetId) === null;
+function canReparent(sourceId, targetId, mode = 'after') {
+  return reparentBlockedReason(sourceId, targetId, mode) === null;
 }
 
 /** Куда добавится новый объект: выбранный пустой узел или корень сцены. */
@@ -773,40 +807,43 @@ function applyLocalMatrix(raw, matrix) {
   raw.rotation = quatToEuler(quatFromMat4(matrix));
 }
 
-/** Перенести сущность в другую группу или в корень, сохранив мировое положение. */
-function reparent(sourceId, targetId) {
+/** Перенести сущность: before/after — рядом с target, into — в группу. */
+function reparent(sourceId, targetId, mode = 'after') {
   const source = findRaw(state.doc.entities, sourceId);
   if (!source) return;
 
-  const target = targetId ? findRaw(state.doc.entities, targetId) : null;
   const entity = state.entities.find((item) => item.id === sourceId);
   const world = entity ? entity.matrix.slice() : null;
+  const parentBefore = source.parent;
 
-  const from = source.parent ? source.parent.children : state.doc.entities;
-  const index = from.indexOf(source.raw);
-  if (index >= 0) from.splice(index, 1);
+  const moved = moveNode(state.doc.entities, sourceId, targetId, mode);
+  if (!moved) return;
 
-  let parentRaw = null;
-
-  if (target && target.raw.type === 'empty') {
-    parentRaw = target.raw;
-    parentRaw.children = parentRaw.children || [];
-    parentRaw.children.push(source.raw);
-  } else if (target) {
-    const list = target.parent ? target.parent.children : state.doc.entities;
-    list.splice(list.indexOf(target.raw) + 1, 0, source.raw);
-  } else {
-    state.doc.entities.push(source.raw);
-  }
-
-  if (world) {
-    const parentEntity = parentRaw ? state.entities.find((item) => item.id === parentRaw.id) : null;
-    applyLocalMatrix(source.raw, parentEntity ? M4.mul(M4.invert(parentEntity.matrix), world) : world);
+  // Смена родителя: сохраняем мировое положение объекта.
+  if (world && moved.toParent !== parentBefore) {
+    const parentEntity = moved.toParent
+      ? state.entities.find((item) => item.id === moved.toParent.id)
+      : null;
+    applyLocalMatrix(moved.node, parentEntity ? M4.mul(M4.invert(parentEntity.matrix), world) : world);
   }
 
   state.selectedId = sourceId;
   markDirty();
   rebuild().catch((err) => setStatus(err.message, true));
+}
+
+/** Сдвинуть выбранный объект на delta позиций в его списке. */
+function moveSibling(delta) {
+  const found = selected();
+  if (!found || found.raw.id === SCENE_ID) return;
+
+  const list = found.parent ? (found.parent.children || []) : state.doc.entities;
+  const index = list.indexOf(found.raw);
+  const next = index + delta;
+  if (index < 0 || next < 0 || next >= list.length) return;
+
+  reparent(found.raw.id, list[next].id, delta < 0 ? 'before' : 'after');
+  setStatus(delta < 0 ? 'Объект перемещён выше' : 'Объект перемещён ниже');
 }
 
 /* -------------------------------- Инспектор ------------------------------- */
@@ -2971,6 +3008,16 @@ contextMenu.addEventListener('click', (event) => {
     return;
   }
 
+  if (action === 'move-up') {
+    moveSibling(-1);
+    return;
+  }
+
+  if (action === 'move-down') {
+    moveSibling(1);
+    return;
+  }
+
   if (action === 'add-empty') addEmpty();
   if (action === 'add-hud') addHud();
   if (action === 'add-trigger') addTrigger();
@@ -3328,6 +3375,13 @@ function showContextMenu(x, y, raw = null) {
       if (state.mode === 'scene') items.push(['refresh', `Обновить префаб «${prefabTitle}»`]);
     } else {
       items.push(['create', 'Создать префаб']);
+    }
+
+    if (raw.id !== SCENE_ID) {
+      items.push(
+        ['move-up', 'Переместить выше'],
+        ['move-down', 'Переместить ниже']
+      );
     }
   }
 
@@ -4254,6 +4308,13 @@ window.addEventListener('keydown', (event) => {
   const target = event.target;
   if (target && target.matches && target.matches('input, select, textarea')) return;
 
+  // Alt+↑/↓ — поменять порядок выбранного объекта среди соседей.
+  if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+    event.preventDefault();
+    moveSibling(event.key === 'ArrowUp' ? -1 : 1);
+    return;
+  }
+
   if (event.key === 'Delete') {
     event.preventDefault();
     deleteSelected();
@@ -4287,7 +4348,7 @@ window.addEventListener('keydown', (event) => {
 /* --------------------------------- Старт --------------------------------- */
 
 // Отладочный доступ: удобно проверять сцену из консоли браузера
-window.__editor = { state, selectEntity, rebuild, loadScene, project, hitGizmoAxis, screenRay, axisParameter };
+window.__editor = { state, selectEntity, rebuild, loadScene, project, hitGizmoAxis, screenRay, axisParameter, moveSibling, reparent };
 updateSaveUi();
 
 

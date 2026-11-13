@@ -214,7 +214,7 @@
             {
               "file": "weapons.js",
               "params": {
-                "body": "corinth-cargo-transported-1",
+                "body": "corinth-cargo-transported-shield-1",
                 "muzzleLeft": "gun-left-1",
                 "muzzleRight": "gun-right-1",
                 "targetDistance": 500,
@@ -234,7 +234,7 @@
               "file": "mining.js",
               "params": {
                 "origin": "mining-origin-1",
-                "body": "corinth-cargo-transported-1",
+                "body": "corinth-cargo-transported-shield-1",
                 "range": 60,
                 "cycleTime": 2.6,
                 "decay": 0.7,
@@ -246,11 +246,11 @@
             {
               "id": "gun-left-1",
               "type": "empty",
-              "name": "gun-left",
+              "name": "gun-top-left",
               "position": [
-                0.5,
-                0.823,
-                3.286
+                -0.148,
+                0.738,
+                -3.383
               ],
               "rotation": [
                 0,
@@ -263,11 +263,11 @@
             {
               "id": "gun-right-1",
               "type": "empty",
-              "name": "gun-right",
+              "name": "gun-top-right",
               "position": [
-                -0.5,
-                0.823,
-                3.286
+                0.122,
+                0.738,
+                -3.383
               ],
               "rotation": [
                 0,
@@ -296,6 +296,72 @@
             },
             {
               "id": "camera-1",
+              "type": "empty",
+              "name": "Оружие",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "children": [],
+              "scripts": [
+                {
+                  "file": "weapons/controller.js",
+                  "params": {}
+                },
+                {
+                  "file": "weapons/laser.js",
+                  "params": {
+                    "body": "player-ship-1",
+                    "muzzle1": "laser-2",
+                    "muzzle2": "",
+                    "muzzle3": "",
+                    "muzzle4": "",
+                    "targetDistance": 500,
+                    "width": 8,
+                    "intensity": 2.4
+                  }
+                },
+                {
+                  "file": "weapons/machinegun.js",
+                  "params": {
+                    "body": "player-ship-1",
+                    "muzzle1": "gun-left-1",
+                    "muzzle2": "gun-right-1",
+                    "muzzle3": "",
+                    "muzzle4": "",
+                    "targetDistance": 500,
+                    "count": 25,
+                    "interval": 0.2,
+                    "cooldown": 0.8,
+                    "speed": 650,
+                    "life": 1.2,
+                    "width": 7
+                  }
+                },
+                {
+                  "file": "weapons/rocket.js",
+                  "params": {
+                    "body": "player-ship-1",
+                    "muzzle1": "gun-left-1",
+                    "muzzle2": "gun-right-1",
+                    "targetDistance": 500,
+                    "cooldown": 1.4,
+                    "prefab": "rocket",
+                    "speed": 95,
+                    "life": 6
+                  }
+                }
+              ]
+            },
+            {
+              "id": "corinth-cargo-transported-1",
               "type": "camera",
               "name": "camera",
               "position": [
@@ -327,7 +393,7 @@
                 {
                   "file": "camera.js",
                   "params": {
-                    "body": "corinth-cargo-transported-1",
+                    "body": "corinth-cargo-transported-shield-1",
                     "height": 21,
                     "distance": 1,
                     "drop": 6.5,
@@ -341,7 +407,7 @@
               "children": []
             },
             {
-              "id": "corinth-cargo-transported-1",
+              "id": "corinth-cargo-transported-shield-1",
               "type": "model",
               "name": "corinth-cargo-transported",
               "asset": "corinth-cargo-transported",
@@ -706,7 +772,7 @@
               }
             },
             {
-              "id": "corinth-cargo-transported-shield-1",
+              "id": "empty-1",
               "type": "model",
               "name": "corinth_cargo_transported_shield",
               "asset": "corinth-cargo-transported-shield",
@@ -758,7 +824,7 @@
               ]
             },
             {
-              "id": "empty-1",
+              "id": "weapon-target-1",
               "type": "empty",
               "name": "HUD",
               "position": [
@@ -778,7 +844,7 @@
               ],
               "children": [
                 {
-                  "id": "hud-menu-1",
+                  "id": "hud-menu-2",
                   "name": "Меню",
                   "type": "hud",
                   "position": [
@@ -804,7 +870,7 @@
                   }
                 },
                 {
-                  "id": "hud-mining-1",
+                  "id": "hud-mining-2",
                   "type": "hud",
                   "name": "Добыча",
                   "position": [
@@ -830,7 +896,7 @@
                   }
                 },
                 {
-                  "id": "hud-1",
+                  "id": "hud-3",
                   "type": "hud",
                   "name": "Оружие",
                   "position": [
@@ -854,7 +920,7 @@
                   }
                 },
                 {
-                  "id": "hud-2",
+                  "id": "hud-4",
                   "type": "hud",
                   "name": "Управление",
                   "position": [
@@ -890,7 +956,7 @@
               "prefabTitle": "HUD"
             },
             {
-              "id": "weapon-target-1",
+              "id": "reticle-1",
               "type": "empty",
               "name": "weapon-target",
               "position": [
@@ -914,13 +980,13 @@
                   "file": "target.js",
                   "params": {
                     "player": "player-ship-1",
-                    "reticle": "reticle-1"
+                    "reticle": "skybox-1"
                   }
                 }
               ]
             },
             {
-              "id": "reticle-1",
+              "id": "skybox-1",
               "type": "reticle",
               "name": "Прицел",
               "position": [
@@ -956,7 +1022,7 @@
               ]
             },
             {
-              "id": "skybox-1",
+              "id": "skybox-2",
               "type": "skybox",
               "name": "Skybox",
               "position": [
@@ -970,7 +1036,49 @@
                 0
               ],
               "scale": 1,
-              "skybox": "alien-nebula-3",
+              "skybox": "realistic-milkyway",
+              "children": []
+            },
+            {
+              "id": "empty-2",
+              "type": "empty",
+              "name": "gun-bottom-center",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "children": []
+            },
+            {
+              "id": "laser-2",
+              "type": "empty",
+              "name": "Лазер",
+              "position": [
+                0,
+                -0.545,
+                -3.477
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
               "children": []
             }
           ],
