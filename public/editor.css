@@ -723,3 +723,11 @@ button.primary:hover { border-color: var(--accent); }
   margin: 10px;
   text-align: center;
 }
+
+.skybox-thumb {
+  display: block;
+  width: 100%;
+  margin: 8px 0 4px;
+  border: 1px solid rgba(120, 170, 230, 0.25);
+  border-radius: 6px;
+}

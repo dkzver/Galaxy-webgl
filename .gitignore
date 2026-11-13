@@ -18,3 +18,10 @@ public/models/Corinth_Cargo_Transporter.obj
 public/models/orbital_station.obj
 public/models/orbital_station.glb
 public/models/test*.obj
+
+# Сырьё панорам неба: исходные паки весят ~220 МБ, в игру идут собранные
+# кубемапы из public/skyboxes (tools/build-skyboxes.py)
+assets/alien-space-nebula-1-skybox/
+assets/alien-space-nebula-2-skybox/
+assets/alien_space_nebula_1_skybox/
+assets/alien_space_nebula_2_skybox/

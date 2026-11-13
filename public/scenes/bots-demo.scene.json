@@ -10,6 +10,18 @@
       "player": {
         "model": "corinth"
       },
+      "scripts": [
+        {
+          "file": "first-screen.js",
+          "params": {
+            "background": "#000000",
+            "hudStyle": "hud/style.css",
+            "loadingFile": "hud/loading.html",
+            "loadingScript": "scripts/loading.js",
+            "cursor": "reticle-cursor-1"
+          }
+        }
+      ],
       "children": [
         {
           "id": "orbital-station-1",
@@ -203,8 +215,8 @@
               "file": "weapons.js",
               "params": {
                 "body": "corinth-cargo-transported-1",
-                "muzzleLeft": "gun-left",
-                "muzzleRight": "gun-right",
+                "muzzleLeft": "gun-left-1",
+                "muzzleRight": "gun-right-1",
                 "targetDistance": 500,
                 "laserDuration": 0.45,
                 "pointerWidth": 8,
@@ -221,7 +233,7 @@
             {
               "file": "mining.js",
               "params": {
-                "origin": "mining-origin",
+                "origin": "mining-origin-1",
                 "body": "corinth-cargo-transported-1",
                 "range": 60,
                 "cycleTime": 2.6,
@@ -942,6 +954,24 @@
                   "params": {}
                 }
               ]
+            },
+            {
+              "id": "skybox-1",
+              "type": "skybox",
+              "name": "Skybox",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "skybox": "realistic-milkyway",
+              "children": []
             }
           ],
           "prefabId": "igrok",
@@ -1234,18 +1264,6 @@
             }
           ],
           "children": []
-        }
-      ],
-      "scripts": [
-        {
-          "file": "first-screen.js",
-          "params": {
-            "background": "#000000",
-            "hudStyle": "hud/style.css",
-            "loadingFile": "hud/loading.html",
-            "loadingScript": "scripts/loading.js",
-            "cursor": "reticle-cursor-1"
-          }
         }
       ]
     }

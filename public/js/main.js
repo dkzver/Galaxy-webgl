@@ -189,6 +189,34 @@ void main() {
 
 // Луч рисуется в экранных координатах: линия от носа корабля к прицелу,
 // поэтому он читается даже когда летит прямо от камеры
+const skyboxVS = `
+attribute vec2 aQuad;
+varying vec2 vUv;
+
+void main() {
+  vUv = aQuad;
+  gl_Position = vec4(aQuad, 0.0, 1.0);
+}`;
+
+// Кубемапа: цвет грани берётся по направлению луча, поэтому шва на азимуте и
+// растяжения на полюсах нет. depth/CULL не участвуют — это фон кадра.
+const skyboxFS = `
+precision mediump float;
+
+varying vec2 vUv;
+
+uniform samplerCube uSky;
+uniform vec3 uForward;
+uniform vec3 uRight;
+uniform vec3 uUp;
+uniform float uTanHalfFov;
+uniform float uAspect;
+
+void main() {
+  vec3 dir = normalize(uForward + uRight * vUv.x * uTanHalfFov * uAspect + uUp * vUv.y * uTanHalfFov);
+  gl_FragColor = textureCube(uSky, dir);
+}`;
+
 const beamVS = `
 attribute vec2 aQuad;
 
@@ -286,7 +314,7 @@ void main() {
   gl_FragColor = vec4(uColor, a);
 }`;
 
-let meshProgram, glowProgram, beamProgram, debugProgram, smokeProgram, shieldProgram;
+let meshProgram, glowProgram, beamProgram, debugProgram, smokeProgram, shieldProgram, skyboxProgram;
 try {
   meshProgram = createProgram(gl, meshVS, meshFS);
   glowProgram = createProgram(gl, glowVS, glowFS);
@@ -294,6 +322,7 @@ try {
   debugProgram = createProgram(gl, debugVS, debugFS);
   smokeProgram = createProgram(gl, smokeVS, smokeFS);
   shieldProgram = createProgram(gl, shieldVS, shieldFS);
+  skyboxProgram = createProgram(gl, skyboxVS, skyboxFS);
 } catch (err) {
   fail(err.message);
   throw err;
@@ -326,6 +355,10 @@ const shieldLoc = {
   aPosition: gl.getAttribLocation(shieldProgram.program, 'aPosition'),
   aNormal: gl.getAttribLocation(shieldProgram.program, 'aNormal'),
   u: shieldProgram.uniforms
+};
+const skyboxLoc = {
+  aQuad: gl.getAttribLocation(skyboxProgram.program, 'aQuad'),
+  u: skyboxProgram.uniforms
 };
 
 const glowQuadBuffer = (() => {
@@ -1266,6 +1299,94 @@ function applySceneHudStyle(href) {
   el.rel = 'stylesheet';
   el.href = href;
   document.head.append(el);
+}
+
+let skyboxTexture = null;
+const skyboxTextureCache = new Map();
+
+// Порядок совпадает с GL: +X, -X, +Y, -Y, +Z, -Z.
+const SKYBOX_FACES = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+
+/** Привести грань к допустимому размеру текстуры, не теряя пропорций. */
+function resizeCubeFace(bitmap, size) {
+  const canvasFace = document.createElement('canvas');
+  canvasFace.width = size;
+  canvasFace.height = size;
+  const context = canvasFace.getContext('2d');
+  context.drawImage(bitmap, 0, 0, size, size);
+  return canvasFace;
+}
+
+/**
+ * Кубемапа вместо equirect-панорамы: у куба нет шва на азимуте склейки и нет
+ * сингулярности на полюсах, поэтому небо вращается без видимых границ.
+ */
+async function loadSkyboxTexture(id) {
+  if (!id) return null;
+  if (skyboxTextureCache.has(id)) return skyboxTextureCache.get(id);
+
+  const promise = (async () => {
+    try {
+      const bitmaps = await Promise.all(SKYBOX_FACES.map(async (face) => {
+        const response = await fetch(`skyboxes/cube/${id}-${face}.jpg`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`грань ${face}: ${response.status}`);
+        return createImageBitmap(await response.blob());
+      }));
+
+      const source = bitmaps[0].width;
+      const limit = gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE) || source;
+      const size = Math.min(source, limit);
+
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+      bitmaps.forEach((bitmap, index) => {
+        const target = gl.TEXTURE_CUBE_MAP_POSITIVE_X + index;
+        const image = size === source ? bitmap : resizeCubeFace(bitmap, size);
+        gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      });
+      gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      bitmaps.forEach((bitmap) => bitmap.close?.());
+      return texture;
+    } catch (err) {
+      console.warn('[skybox] кубемапа не загружена:', id, err);
+      return null;
+    }
+  })();
+
+  skyboxTextureCache.set(id, promise);
+  return promise;
+}
+
+/** Небесная сфера: фон кадра, глубина и коллизии не участвуют. */
+function drawSkybox(fov) {
+  if (!skyboxTexture) return;
+
+  const right = [viewMatrix[0], viewMatrix[4], viewMatrix[8]];
+  const up = [viewMatrix[1], viewMatrix[5], viewMatrix[9]];
+  const forward = [-viewMatrix[2], -viewMatrix[6], -viewMatrix[10]];
+
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+  gl.disable(gl.BLEND);
+  gl.disable(gl.CULL_FACE);
+  gl.useProgram(skyboxProgram.program);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, skyboxTexture);
+  gl.uniform1i(skyboxLoc.u.uSky, 0);
+  gl.uniform3fv(skyboxLoc.u.uForward, forward);
+  gl.uniform3fv(skyboxLoc.u.uRight, right);
+  gl.uniform3fv(skyboxLoc.u.uUp, up);
+  gl.uniform1f(skyboxLoc.u.uTanHalfFov, Math.tan((fov * Math.PI) / 360));
+  gl.uniform1f(skyboxLoc.u.uAspect, canvas.width / Math.max(1, canvas.height));
+  gl.bindBuffer(gl.ARRAY_BUFFER, glowQuadBuffer);
+  gl.enableVertexAttribArray(skyboxLoc.aQuad);
+  gl.vertexAttribPointer(skyboxLoc.aQuad, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.depthMask(true);
 }
 
 async function loadSceneHud(entities) {
@@ -2474,6 +2595,8 @@ function render(time) {
   gl.clearColor(background[0], background[1], background[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+  drawSkybox(renderFov);
+
   /* --- корабль --- */
   if (shipModel) {
     gl.enable(gl.DEPTH_TEST);
@@ -2807,6 +2930,15 @@ async function bootstrapSceneScript(document) {
       onProgress: (done, total) => setLoadingProgress(0.08 + 0.52 * (done / total))
     });
     setLoadingProgress(0.6);
+
+    // Skybox: одна панорама на сцену, без тела и без участия в физике
+    const skyboxEntity = sceneEntities.find((entity) => entity.type === 'skybox'
+      && entity.visible !== false
+      && entity.raw?.skybox);
+    if (skyboxEntity) {
+      skyboxTexture = await loadSkyboxTexture(skyboxEntity.raw.skybox);
+      if (skyboxTexture) setLoadingProgress(0.66);
+    }
 
     attachBodies(sceneEntities, physics);
     bindEffectTriggers(sceneEntities, physics, effects);

@@ -41,6 +41,7 @@ const PREFABS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'pub
 const EFFECTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'effects');
 const SCRIPTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'scripts');
 const MATERIALS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'materials');
+const SKYBOXES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'skyboxes');
 const MAX_BODY = 32 * 1024 * 1024;
 
 function isLocal(req) {
@@ -554,6 +555,15 @@ async function apiHudFiles(res) {
   return send(res, 200, JSON.stringify({ hud: items }), { 'Content-Type': 'application/json; charset=utf-8' });
 }
 
+async function apiSkyboxes(res) {
+  try {
+    const data = JSON.parse(await fs.promises.readFile(path.join(SKYBOXES_DIR, 'index.json'), 'utf8'));
+    return send(res, 200, JSON.stringify({ skyboxes: data.skyboxes || [] }), { 'Content-Type': 'application/json; charset=utf-8' });
+  } catch {
+    return send(res, 200, JSON.stringify({ skyboxes: [] }), { 'Content-Type': 'application/json; charset=utf-8' });
+  }
+}
+
 async function apiPrefabs(res) {
   const prefabs = [];
   const files = await fs.promises.readdir(PREFABS_DIR).catch(() => []);
@@ -604,6 +614,7 @@ async function handleApi(req, res, urlPath) {
   if (req.method === 'GET' && urlPath === '/api/assets') return apiAssets(res);
   if (req.method === 'GET' && urlPath === '/api/models') return apiModels(res);
   if (req.method === 'GET' && urlPath === '/api/prefabs') return apiPrefabs(res);
+  if (req.method === 'GET' && urlPath === '/api/skyboxes') return apiSkyboxes(res);
   if (req.method === 'GET' && urlPath === '/api/effects') return apiEffects(res);
   if (req.method === 'GET' && urlPath === '/api/materials') return apiMaterials(res);
   if (req.method === 'GET' && urlPath === '/api/hud') return apiHudFiles(res);

@@ -145,6 +145,7 @@ const state = {
   scripts: [],
   effects: [],
   prefabs: [],
+  skyboxes: [],
   models: [],
   hudFiles: [],
   hudCache: new Map(),
@@ -538,11 +539,12 @@ const TYPE_ICON = {
   bot: '✦',
   camera: '◉',
   effect: '✧',
-  reticle: '◎'
+  reticle: '◎',
+  skybox: '☁'
 };
 
 // Подписи типов в дереве: служебные типы читаются по-русски
-const TYPE_LABEL = { empty: 'группа', camera: 'камера', effect: 'эффект', reticle: 'прицел' };
+const TYPE_LABEL = { empty: 'группа', camera: 'камера', effect: 'эффект', reticle: 'прицел', skybox: 'skybox' };
 
 let draggedId = null;
 
@@ -1120,6 +1122,20 @@ function renderInspector() {
     );
   }
 
+  if (type === 'skybox') {
+    const options = (state.skyboxes || [])
+      .map((skybox) => `<option value="${skybox.id}"${skybox.id === raw.skybox ? ' selected' : ''}>${escapeHtml(skybox.title || skybox.id)}</option>`)
+      .join('');
+    const current = (state.skyboxes || []).find((skybox) => skybox.id === raw.skybox);
+
+    parts.push(
+      '<h4>Skybox</h4>',
+      `<div class="row"><span>панорама</span><select data-path="skybox">${options || '<option value="">— нет панорам —</option>'}</select></div>`,
+      current?.thumb ? `<img class="skybox-thumb" src="/${current.thumb}" alt="">` : '',
+      '<p class="hint-inline">Небесная сфера вокруг камеры, без коллизии. Применяется только один skybox на сцену.</p>'
+    );
+  }
+
   if (type === 'model' || type === 'bot') {
     const currentAsset = raw.asset || (type === 'bot' ? 'spaceship' : '');
     parts.push(
@@ -1562,6 +1578,12 @@ function applyChange(path) {
 
   // Флажки мыши читаются в момент события — пересборка сцены не нужна
   if (root === 'mouse') return;
+
+  // Skybox — только данные для фона, на геометрию сцены не влияет
+  if (root === 'skybox') {
+    renderInspector();
+    return;
+  }
 
   if (TRANSFORM_PATHS.includes(root) && root !== 'size' && root !== 'trigger') {
     if (entity) {
@@ -2086,6 +2108,11 @@ function pushEntityOutline(vertices, entity, color) {
   }
 
   if (entity.raw.type === 'reticle') {
+    pushEmptyMarker(vertices, entity, color);
+    return;
+  }
+
+  if (entity.raw.type === 'skybox') {
     pushEmptyMarker(vertices, entity, color);
     return;
   }
@@ -2948,6 +2975,7 @@ contextMenu.addEventListener('click', (event) => {
   if (action === 'add-hud') addHud();
   if (action === 'add-trigger') addTrigger();
   if (action === 'add-camera') addCamera();
+  if (action === 'add-skybox') addSkybox();
   if (action === 'add-model') openModelsDialog().catch((err) => setStatus(err.message, true));
   if (action === 'add-reticle') addReticle();
   if (action === 'add-prefab') openPrefabDialog().catch((err) => setStatus(err.message, true));
@@ -3090,6 +3118,15 @@ function addHud() {
 btnHud.addEventListener('click', addHud);
 
 /* -------------------------------- Префабы -------------------------------- */
+
+async function loadSkyboxes() {
+  try {
+    const data = await fetch('/skyboxes/index.json', { cache: 'no-store' }).then((response) => response.json());
+    state.skyboxes = data.skyboxes || [];
+  } catch {
+    state.skyboxes = [];
+  }
+}
 
 async function loadPrefabs(selectId) {
   try {
@@ -3302,6 +3339,7 @@ function showContextMenu(x, y, raw = null) {
     ['add-hud', 'Добавить HUD'],
     ['add-trigger', 'Добавить триггер'],
     ['add-camera', 'Добавить камеру'],
+    ['add-skybox', 'Добавить skybox'],
     ['add-model', 'Модель'],
     ['add-reticle', 'Добавить прицел'],
     ['add-prefab', 'Добавить префаб']
@@ -3551,6 +3589,32 @@ function addEmpty() {
     position: spawnPosition(parent),
     rotation: [0, 0, 0],
     scale: 1,
+    children: []
+  };
+
+  insertRaw(raw, parent);
+  state.selectedId = raw.id;
+  rebuild().catch((err) => setStatus(err.message, true));
+}
+
+function addSkybox() {
+  const hasSkybox = (list) => (list || []).some((entity) => entity.type === 'skybox' || hasSkybox(entity.children));
+  if (hasSkybox(state.doc?.entities)) {
+    setStatus('Skybox уже добавлен: применяется только один', true);
+    return;
+  }
+
+  markDirty();
+
+  const parent = nestTarget();
+  const raw = {
+    id: uniqueId('skybox'),
+    type: 'skybox',
+    name: 'Skybox',
+    position: spawnPosition(parent),
+    rotation: [0, 0, 0],
+    scale: 1,
+    skybox: state.skyboxes[0]?.id || '',
     children: []
   };
 
@@ -4243,6 +4307,7 @@ updateSaveUi();
     await loadAssets();
     await loadEffects();
     await loadHudFiles();
+    await loadSkyboxes();
 
     if (prefabId) {
       await loadPrefabs(prefabId);

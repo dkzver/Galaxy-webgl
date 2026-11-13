@@ -359,13 +359,17 @@ function normalizeEntity(raw, path, taken, nested = false) {
     projectile: normalizeProjectile(raw.projectile),
     // Прицел: вариант, размер и цвета — данные сущности, не код движка
     reticle: type === 'reticle' ? normalizeReticleConfig(raw.reticle) : null,
+    // Небесная сфера: одна панорама на сцену
+    skybox: type === 'skybox' && typeof raw.skybox === 'string' && /^[a-z0-9-]+$/i.test(raw.skybox)
+      ? raw.skybox
+      : null,
     // Взаимодействие с мышью: наведение и клик по модели
     mouse: type === 'model' && raw.mouse && typeof raw.mouse === 'object'
       ? { hover: Boolean(raw.mouse.hover), click: Boolean(raw.mouse.click) }
       : null,
     scripts: normalizeScripts(raw.scripts, path),
     partScripts: raw.partScripts && typeof raw.partScripts === 'object' ? { ...raw.partScripts } : {},
-    body: normalizeBody(raw.body, path),
+    body: type === 'skybox' ? null : normalizeBody(raw.body, path),
     spin: normalizeSpin(raw.spin, path),
     effects: [],
     glow: raw.glow

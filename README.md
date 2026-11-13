@@ -573,6 +573,8 @@ public/
   models/                 Corinth, Space Cruiser и ракета (json + bin с UV)
                           <id>.physics.json — физика модели по умолчанию
   effects/                VFX-описания <id>.effect.json (params + layers)
+  skyboxes/               небо: cube/<id>-{px,nx,py,ny,pz,nz}.jpg, превью <id>.jpg,
+                          <id>-thumb.jpg, index.json (tools/build-skyboxes.py)
   materials/              материалы как данные: <id>.material.json (щит и др.)
   textures/               атласы материалов (base / rough / metal)
   js/

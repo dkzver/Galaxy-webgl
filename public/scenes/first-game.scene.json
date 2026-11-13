@@ -948,6 +948,24 @@
                   "params": {}
                 }
               ]
+            },
+            {
+              "id": "skybox-1",
+              "type": "skybox",
+              "name": "Skybox",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "skybox": "realistic-milkyway",
+              "children": []
             }
           ],
           "prefabId": "igrok",

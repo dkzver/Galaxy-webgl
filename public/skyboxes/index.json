@@ -1,0 +1,44 @@
+{
+  "skyboxes": [
+    {
+      "id": "alien-nebula-1",
+      "title": "Alien Space Nebula 1",
+      "file": "skyboxes/alien-nebula-1.jpg",
+      "thumb": "skyboxes/alien-nebula-1-thumb.jpg",
+      "cube": "skyboxes/cube/alien-nebula-1",
+      "faceSize": 1024
+    },
+    {
+      "id": "alien-nebula-2",
+      "title": "Alien Space Nebula 2",
+      "file": "skyboxes/alien-nebula-2.jpg",
+      "thumb": "skyboxes/alien-nebula-2-thumb.jpg",
+      "cube": "skyboxes/cube/alien-nebula-2",
+      "faceSize": 1024
+    },
+    {
+      "id": "alien-nebula-3",
+      "title": "Alien Space Nebula 3",
+      "file": "skyboxes/alien-nebula-3.jpg",
+      "thumb": "skyboxes/alien-nebula-3-thumb.jpg",
+      "cube": "skyboxes/cube/alien-nebula-3",
+      "faceSize": 1024
+    },
+    {
+      "id": "alien-nebula-4",
+      "title": "Alien Space Nebula 4",
+      "file": "skyboxes/alien-nebula-4.jpg",
+      "thumb": "skyboxes/alien-nebula-4-thumb.jpg",
+      "cube": "skyboxes/cube/alien-nebula-4",
+      "faceSize": 1024
+    },
+    {
+      "id": "realistic-milkyway",
+      "title": "Realistic Milky Way",
+      "file": "skyboxes/realistic-milkyway.jpg",
+      "thumb": "skyboxes/realistic-milkyway-thumb.jpg",
+      "cube": "skyboxes/cube/realistic-milkyway",
+      "faceSize": 2048
+    }
+  ]
+}
