@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GalaxyDemo — материал</title>
+<link rel="stylesheet" href="editor.css">
+<link rel="stylesheet" href="model-editor.css">
+<link rel="stylesheet" href="material-editor.css">
+</head>
+<body>
+<div class="model-editor">
+  <header class="bar">
+    <div class="brand">GALAXY <span>EDITOR</span> · материал</div>
+
+    <div class="bar-group">
+      <select id="material-select" aria-label="Материал"></select>
+      <button id="btn-save" type="button" class="primary" title="Ctrl+S">Сохранить</button>
+      <span id="save-state" class="save-state">без изменений</span>
+    </div>
+
+    <a class="play" href="editor.html">← В редактор сцены</a>
+  </header>
+
+  <main class="model-body material-body">
+    <section class="card preview-card">
+      <h4>Предпросмотр</h4>
+      <div class="preview-wrap">
+        <canvas id="preview"></canvas>
+      </div>
+      <p class="hint-inline">Сфера — оболочка материала. «Тест попадания» зажигает пятно: так же оно выглядит на щите корабля.</p>
+    </section>
+
+    <section class="card params-card">
+      <h4>Параметры</h4>
+      <div id="params" class="params"></div>
+
+      <div class="fit-actions">
+        <button id="btn-test" type="button" class="primary">Тест попадания</button>
+      </div>
+
+      <p id="status" class="parts-status">—</p>
+      <p class="hint-inline">Поля строятся из схемы <b>params</b> материала. Сохранение пишет <b>public/materials/&lt;id&gt;.material.json</b>.</p>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/editor/material-editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round">
+  <g data-role="outer">
+    <circle cx="60" cy="60" r="50" opacity="0.5" stroke-width="1.2" />
+    <circle cx="60" cy="60" r="42" opacity="0.25" stroke-dasharray="2 6" />
+  </g>
+  <g data-role="scan">
+    <circle cx="60" cy="60" r="46" pathLength="1" stroke-dasharray="0.1 0.9" stroke-width="2.2" opacity="0.9" />
+  </g>
+  <g data-role="core">
+    <circle cx="60" cy="60" r="10" opacity="0.35" />
+    <circle cx="60" cy="60" r="2" fill="currentColor" stroke="none" />
+  </g>
+  <g data-role="progress-group" transform="rotate(-90 60 60)">
+    <circle cx="60" cy="60" r="54" opacity="0.12" stroke-width="2" />
+    <circle data-role="progress" cx="60" cy="60" r="54" pathLength="1" stroke-width="4" />
+  </g>
+</svg>

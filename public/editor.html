@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GalaxyDemo — редактор сцен</title>
 <link rel="stylesheet" href="editor.css">
+<link rel="stylesheet" href="hud/reticle.css">
 </head>
 <body>
 <div class="editor">
@@ -113,6 +114,19 @@
     <div class="dialog-actions">
       <button id="prefab-dialog-cancel" type="button">Отмена</button>
       <button id="prefab-dialog-insert" type="button" class="primary">Вставить</button>
+    </div>
+  </div>
+</div>
+<div id="models-dialog" class="dialog-backdrop" hidden>
+  <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-label="Модели">
+    <div class="dialog-head">
+      <span>Модели</span>
+      <button id="models-dialog-close" type="button" class="icon-btn" title="Закрыть">×</button>
+    </div>
+    <p class="dialog-hint">Имя сохраняется сразу. «Изменить» откроет редактор модели, «Удалить» удалит файлы окончательно.</p>
+    <div id="models-table" class="models-table"></div>
+    <div class="dialog-actions">
+      <button id="models-dialog-done" type="button">Закрыть</button>
     </div>
   </div>
 </div>

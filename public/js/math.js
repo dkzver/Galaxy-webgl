@@ -247,6 +247,39 @@ export function quatFromAxisAngle(axis, angle) {
   return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(half)];
 }
 
+/**
+ * Кватернион, разворачивающий локальную ось forward в direction.
+ * По умолчанию forward = [0, 0, -1]: так смотрят носы моделей кораблей и ракеты.
+ */
+export function quatFromDirection(direction, forward = [0, 0, -1]) {
+  const normalize = (v) => {
+    const length = Math.hypot(v?.[0] || 0, v?.[1] || 0, v?.[2] || 0);
+    return length < 1e-9 ? [0, 0, -1] : [v[0] / length, v[1] / length, v[2] / length];
+  };
+
+  const from = normalize(forward);
+  const to = normalize(direction);
+  const dot = Math.min(1, Math.max(-1, from[0] * to[0] + from[1] * to[1] + from[2] * to[2]));
+
+  if (dot > 0.999999) return [0, 0, 0, 1];
+
+  if (dot < -0.999999) {
+    // Разворот на 180°: любая перпендикулярная ось даёт корректный кватернион.
+    const axis = Math.abs(from[1]) < 0.9
+      ? normalize([-from[2], 0, from[0]])
+      : normalize([0, -from[2], from[1]]);
+    return quatFromAxisAngle(axis, Math.PI);
+  }
+
+  const axis = normalize([
+    from[1] * to[2] - from[2] * to[1],
+    from[2] * to[0] - from[0] * to[2],
+    from[0] * to[1] - from[1] * to[0]
+  ]);
+
+  return quatFromAxisAngle(axis, Math.acos(dot));
+}
+
 export function quatNormalize(q) {
   const len = Math.hypot(q[0], q[1], q[2], q[3]) || 1;
   return [q[0] / len, q[1] / len, q[2] / len, q[3] / len];

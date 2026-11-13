@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { eulerToQuat, quatToEuler, normalizeScene, reassignIds } from '../public/js/scene.js';
+import { eulerToQuat, quatToEuler, normalizeScene, reassignIds, remapEntityReferences, sanitizePrefabReferences, refreshPrefabRoots } from '../public/js/scene.js';
 import { syncAttachedBodies, attachBodies } from '../public/js/scene-runtime.js';
 import { PhysicsWorld, sphereShape } from '../public/js/physics.js';
 import { M4, quatFromAxisAngle, quatFromMat4, quatNormalize, quatRotate, quatToMat4 } from '../public/js/math.js';
@@ -473,4 +473,275 @@ test('attachBodies собирает compound из боксов с учётом �
   assert.equal(entity.body.shape.spheres[0].radius, 2);
   assert.deepEqual(entity.body.shape.boxes[0].offset, [4, 0, 0]);
   assert.deepEqual(entity.body.shape.boxes[0].halfExtents, [2, 4, 6]);
+});
+
+test('remapEntityReferences переводит ссылки на новые id', () => {
+  const entities = [{
+    id: 'player-1',
+    scripts: [
+      'input.js',
+      { file: 'weapons.js', params: { body: 'mesh-1', muzzleLeft: 'gun-left', other: 5 } }
+    ],
+    hud: { target: 'ship-1' },
+    bot: { spawn: 'spawn-1' },
+    spawnId: 'spawn-1',
+    children: [
+      { id: 'gun-left', scripts: [{ file: 'rotator.js', params: { target: 'mesh-1' } }] }
+    ]
+  }];
+
+  remapEntityReferences(entities, new Map([
+    ['mesh-1', 'mesh-2'],
+    ['gun-left', 'gun-left-2'],
+    ['ship-1', 'ship-2'],
+    ['spawn-1', 'spawn-2']
+  ]));
+
+  assert.equal(entities[0].scripts[1].params.body, 'mesh-2');
+  assert.equal(entities[0].scripts[1].params.muzzleLeft, 'gun-left-2');
+  assert.equal(entities[0].scripts[1].params.other, 5, 'числа не трогаем');
+  assert.equal(entities[0].hud.target, 'ship-2');
+  assert.equal(entities[0].bot.spawn, 'spawn-2');
+  assert.equal(entities[0].spawnId, 'spawn-2');
+  assert.equal(entities[0].children[0].scripts[0].params.target, 'mesh-2');
+});
+
+test('sanitizePrefabReferences оставляет внутренние ссылки и чистит внешние', () => {
+  const entities = [{
+    id: 'player',
+    scripts: [
+      { file: 'weapons.js', params: { body: 'mesh', muzzleLeft: 'gun-outside', note: 'mesh' } }
+    ],
+    hud: { target: 'menu-outside' },
+    bot: { spawn: 'spawn-outside' },
+    spawnId: 'spawn-outside',
+    children: [
+      { id: 'mesh' },
+      { id: 'gun', scripts: [{ file: 'rotator.js', params: { target: 'mesh', broken: 'ghost' } }] }
+    ]
+  }];
+
+  const cleared = sanitizePrefabReferences(entities, {
+    sceneIds: new Set(['player', 'mesh', 'gun', 'gun-outside', 'menu-outside', 'spawn-outside']),
+    isEntityParam: (file, key) => [
+      'weapons.js.body', 'weapons.js.muzzleLeft', 'rotator.js.target', 'rotator.js.broken'
+    ].includes(`${file}.${key}`)
+  });
+
+  assert.equal(entities[0].scripts[0].params.body, 'mesh', 'внутренняя ссылка остаётся');
+  assert.equal(entities[0].scripts[0].params.muzzleLeft, '', 'внешняя ссылка очищена');
+  assert.equal(entities[0].scripts[0].params.note, 'mesh', 'обычная строка не тронута');
+  assert.equal(entities[0].hud.target, null);
+  assert.equal(entities[0].bot.spawn, null);
+  assert.equal('spawnId' in entities[0], false);
+  assert.equal(entities[0].children[1].scripts[0].params.target, 'mesh');
+  assert.equal(entities[0].children[1].scripts[0].params.broken, '', 'мёртвый id очищен');
+  assert.ok(cleared.some((item) => item.reason === 'вне префаба'));
+  assert.ok(cleared.some((item) => item.reason === 'не найдено'));
+});
+
+test('materialId сохраняется только валидным', () => {
+  const scene = normalizeScene({
+    version: 1,
+    id: 'material-test',
+    entities: [
+      {
+        id: 'scene',
+        type: 'scene',
+        children: [
+          { id: 'a', type: 'model', asset: 'shield-model', materialId: 'shield' },
+          { id: 'b', type: 'model', asset: 'shield-model', materialId: 'плохой id' }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(scene.entities[0].materialId, 'shield');
+  assert.equal(scene.entities[1].materialId, null);
+});
+
+test('refreshPrefabRoots берёт содержимое префаба, сохраняя id и место', () => {
+  const existing = [{
+    id: 'ship-1',
+    name: 'Старый корабль',
+    position: [10, 0, -5],
+    rotation: [0, 90, 0],
+    scale: [2, 2, 2],
+    prefabId: 'player-ship',
+    prefabTitle: 'Игрок',
+    children: [
+      { id: 'ship-mesh', type: 'model', asset: 'corinth' },
+      { id: 'gun-left', type: 'empty' }
+    ]
+  }];
+
+  const incoming = [{
+    id: 'ship',
+    name: 'Новый корабль',
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: 1,
+    children: [
+      { id: 'ship-mesh', type: 'model', asset: 'corinth' },
+      { id: 'gun-left', type: 'empty' },
+      { id: 'gun-right', type: 'empty' }
+    ]
+  }];
+
+  const result = refreshPrefabRoots(existing, incoming, {
+    taken: new Set(['ship-1', 'ship-mesh', 'gun-left'])
+  });
+
+  const root = result.entities[0];
+  assert.equal(root.id, 'ship-1', 'id корня переиспользован');
+  assert.equal(root.name, 'Новый корабль', 'содержимое из префаба');
+  assert.deepEqual(root.position, [10, 0, -5], 'место установки не меняется');
+  assert.deepEqual(root.rotation, [0, 90, 0]);
+  assert.deepEqual(root.scale, [2, 2, 2]);
+  assert.deepEqual(root.children.map((child) => child.id), ['ship-mesh', 'gun-left', 'gun-right-1']);
+  assert.equal(result.kept, 3);
+  assert.equal(result.added, 1);
+  assert.equal(result.removed, 0);
+  assert.equal(incoming[0].id, 'ship', 'файл префаба не мутируется');
+  assert.equal(incoming[0].children[2].id, 'gun-right');
+});
+
+test('refreshPrefabRoots перенумеровывает ссылки на узлы префаба', () => {
+  const existing = [{ id: 'player-1', children: [{ id: 'mesh-1' }] }];
+  const incoming = [{
+    id: 'player',
+    scripts: [{
+      file: 'weapons.js',
+      params: { body: 'mesh', muzzleLeft: 'gun-left', muzzleRight: 'gun-right' }
+    }],
+    children: [
+      { id: 'mesh' },
+      { id: 'gun-left' },
+      { id: 'gun-right' }
+    ]
+  }];
+
+  // gun-left-1 уже занят другим объектом сцены
+  const result = refreshPrefabRoots(existing, incoming, { taken: ['player-1', 'mesh-1', 'gun-left-1'] });
+  const root = result.entities[0];
+  const params = root.scripts[0].params;
+
+  assert.equal(root.id, 'player-1');
+  assert.equal(root.children[0].id, 'mesh-1');
+  assert.equal(root.children[1].id, 'gun-left-2', 'занятый id обойдён');
+  assert.equal(root.children[2].id, 'gun-right-1');
+  assert.equal(params.body, 'mesh-1', 'ссылка на существующий узел');
+  assert.equal(params.muzzleLeft, 'gun-left-2', 'ссылка на новый узел');
+  assert.equal(params.muzzleRight, 'gun-right-1');
+  assert.equal(result.added, 2);
+});
+
+test('refreshPrefabRoots убирает узлы, которых больше нет в префабе', () => {
+  const existing = [{
+    id: 'station-1',
+    position: [0, 0, 0],
+    children: [
+      { id: 'hull-1' },
+      { id: 'extra-1', children: [{ id: 'legacy-1' }] }
+    ]
+  }];
+  const incoming = [{ id: 'station', children: [{ id: 'hull' }] }];
+
+  const result = refreshPrefabRoots(existing, incoming, {
+    taken: ['station-1', 'hull-1', 'extra-1', 'legacy-1']
+  });
+
+  assert.deepEqual(result.entities[0].children.map((child) => child.id), ['hull-1']);
+  assert.equal(result.kept, 2);
+  assert.equal(result.added, 0);
+  assert.equal(result.removed, 2, 'лишние узлы посчитаны');
+});
+
+test('refreshPrefabRoots берёт трансформ префаба, если корень сменил тип', () => {
+  const existing = [{
+    id: 'station-1',
+    type: 'model',
+    position: [0, 0, -306.911],
+    rotation: [0, 45, 0],
+    scale: [0.2, 0.2, 0.2]
+  }];
+  const incoming = [{
+    id: 'station',
+    type: 'empty',
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: 1,
+    children: [{ id: 'hull', type: 'model', position: [0, 0, -130], scale: [0.2, 0.2, 0.2] }]
+  }];
+
+  const result = refreshPrefabRoots(existing, incoming, { taken: ['station-1'] });
+  const root = result.entities[0];
+
+  assert.equal(root.id, 'station-1');
+  assert.deepEqual(root.position, [0, 0, -306.911], 'место установки остаётся');
+  assert.deepEqual(root.rotation, [0, 0, 0], 'поворот из префаба');
+  assert.equal(root.scale, 1, 'масштаб не применяется дважды');
+});
+
+test('ссылка сцены на курсор сохраняется в корне', () => {
+  const scene = normalizeScene({
+    version: 1,
+    id: 'cursor-link',
+    entities: [{
+      id: 'scene',
+      type: 'scene',
+      cursor: 'reticle-cursor-1',
+      children: [{ id: 'reticle-cursor-1', type: 'reticle', reticle: { size: 24 } }]
+    }]
+  });
+
+  assert.equal(scene.cursor, 'reticle-cursor-1');
+  assert.equal(scene.scene.cursor, 'reticle-cursor-1');
+
+  const empty = normalizeScene({
+    version: 1,
+    id: 'no-cursor',
+    entities: [{ id: 'scene', type: 'scene', children: [] }]
+  });
+  assert.equal(empty.cursor, null, 'без ссылки — системный указатель');
+});
+
+test('скрипт сцены задаёт фон, HUD, загрузку и курсор', () => {
+  const scene = normalizeScene({
+    version: 1,
+    id: 'scripted',
+    entities: [{
+      id: 'scene',
+      type: 'scene',
+      scripts: [{
+        file: 'first-screen.js',
+        params: {
+          background: '#102030',
+          hudStyle: 'hud/style.css',
+          loadingFile: 'hud/loading.html',
+          loadingScript: 'scripts/loading.js',
+          cursor: 'reticle-cursor-1'
+        }
+      }],
+      children: [{ id: 'reticle-cursor-1', type: 'reticle' }]
+    }]
+  });
+
+  assert.equal(scene.scripts.length, 1);
+  assert.equal(scene.scripts[0].file, 'first-screen.js');
+  assert.equal(scene.background, '#102030');
+  assert.equal(scene.scene.hudStyle, 'hud/style.css');
+  assert.equal(scene.scene.loading.file, 'hud/loading.html');
+  assert.equal(scene.scene.loading.script, 'scripts/loading.js');
+  assert.equal(scene.cursor, 'reticle-cursor-1');
+});
+
+test('без скрипта сцены список scripts пуст', () => {
+  const scene = normalizeScene({
+    version: 1,
+    id: 'no-script',
+    entities: [{ id: 'scene', type: 'scene', children: [] }]
+  });
+
+  assert.deepEqual(scene.scripts, []);
 });

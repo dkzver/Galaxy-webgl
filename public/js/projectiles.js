@@ -9,8 +9,11 @@
  * пул и рантайм префабов приходят снаружи. Логика проверяется в node --test.
  */
 
-import { quatConjugate, quatFromAxisAngle, quatRotate } from './math.js';
+import { quatConjugate, quatFromDirection, quatRotate } from './math.js';
 import { getWorldBoxes, getWorldSpheres } from './physics/shapes.js';
+
+// Реэкспорт: quatFromDirection переехал в math.js, но импорт из снарядов остаётся рабочим
+export { quatFromDirection };
 
 function numberOr(value, fallback) {
   const number = Number(value);
@@ -37,14 +40,6 @@ function dot(a, b) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-function cross(a, b) {
-  return [
-    a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0]
-  ];
-}
-
 /** Нормировать вектор; нулевой становится -Z — направлением «вперёд». */
 export function normalizeDirection(vector) {
   const length = Math.hypot(vector?.[0] || 0, vector?.[1] || 0, vector?.[2] || 0);
@@ -53,27 +48,8 @@ export function normalizeDirection(vector) {
 }
 
 /**
- * Кватернион, разворачивающий локальную ось forward в direction.
- * Модель ракеты смотрит носом в −Z, поэтому по умолчанию forward = [0, 0, -1].
+ * Расстояние от точки до отрезка [a, b].
  */
-export function quatFromDirection(direction, forward = [0, 0, -1]) {
-  const from = normalizeDirection(forward);
-  const to = normalizeDirection(direction);
-  const cosine = clamp(dot(from, to), -1, 1);
-
-  if (cosine > 0.999999) return [0, 0, 0, 1];
-
-  if (cosine < -0.999999) {
-    // Разворот на 180°: любая перпендикулярная ось даёт корректный кватернион.
-    const axis = Math.abs(from[1]) < 0.9 ? cross(from, [0, 1, 0]) : cross(from, [1, 0, 0]);
-    return quatFromAxisAngle(normalizeDirection(axis), Math.PI);
-  }
-
-  const axis = normalizeDirection(cross(from, to));
-  return quatFromAxisAngle(axis, Math.acos(cosine));
-}
-
-/** Расстояние от точки до отрезка [a, b]. */
 export function distancePointToSegment(point, a, b) {
   const ab = sub(b, a);
   const lengthSq = dot(ab, ab);
@@ -232,8 +208,9 @@ function collectIgnore(owner) {
  * @param {object[]} [options.entities] сущности сцены
  * @param {object} options.pool пул экземпляров (acquire/release/mount)
  * @param {number} [options.maxDistance] предел полёта, м
+ * @param {Function|null} [options.onHit] коллбек попадания: получает тело, точку и снаряд
  */
-export function createProjectileSystem({ physics, effects = null, entities = [], pool, maxDistance = 5000 }) {
+export function createProjectileSystem({ physics, effects = null, entities = [], pool, maxDistance = 5000, onHit = null }) {
   const active = [];
   const stats = { fired: 0, rejected: 0, hits: 0, expired: 0 };
 
@@ -362,6 +339,20 @@ export function createProjectileSystem({ physics, effects = null, entities = [],
 
         if (hit.body?.isDynamic && instance.impulse > 0) {
           hit.body.applyImpulse(scale(instance.direction, instance.impulse), hit.point);
+        }
+
+        // Событие попадания для скриптов сцены (щит, урон, звук)
+        if (typeof onHit === 'function') {
+          onHit({
+            entity: hit.body?.userData?.entity || null,
+            body: hit.body,
+            point: hit.point.slice(),
+            normal: hit.normal.slice(),
+            kind: hit.kind,
+            direction: instance.direction.slice(),
+            speed: instance.speed,
+            projectile: instance.prefab || null
+          });
         }
 
         release(instance);

@@ -7,17 +7,15 @@
       "id": "scene",
       "type": "scene",
       "name": "Сцена",
-      "background": "#000000",
-      "hud": {
-        "style": "hud/style.css"
-      },
-      "loading": {
-        "file": "hud/loading.html",
-        "script": "scripts/loading.js"
-      },
       "player": {
         "model": "corinth"
       },
+      "scripts": [
+        {
+          "file": "first-screen.js",
+          "params": {}
+        }
+      ],
       "children": [
         {
           "id": "orbital-station-1",
@@ -111,132 +109,6 @@
             0.2,
             0.2,
             0.2
-          ]
-        },
-        {
-          "id": "empty-2",
-          "type": "empty",
-          "name": "HUD",
-          "position": [
-            -1.845,
-            27.08,
-            -120.665
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ],
-          "scale": 1,
-          "children": [
-            {
-              "id": "hud-menu",
-              "name": "Меню",
-              "type": "hud",
-              "position": [
-                51.845,
-                22.92,
-                120.665
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": [
-                1,
-                1,
-                1
-              ],
-              "hud": {
-                "file": "hud/menu.html",
-                "follow": "none",
-                "anchor": "center",
-                "startHidden": true
-              }
-            },
-            {
-              "id": "hud-mining",
-              "type": "hud",
-              "name": "Добыча",
-              "position": [
-                51.845,
-                -7.08,
-                120.665
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": [
-                1,
-                1,
-                1
-              ],
-              "hud": {
-                "file": "hud/mining.html",
-                "follow": "none",
-                "anchor": "center",
-                "startHidden": false
-              }
-            },
-            {
-              "id": "hud-2",
-              "type": "hud",
-              "name": "Оружие",
-              "position": [
-                51.845,
-                -17.08,
-                120.665
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": [
-                1,
-                1,
-                1
-              ],
-              "hud": {
-                "file": "hud/weapons.html",
-                "bind": null
-              }
-            },
-            {
-              "id": "hud-1",
-              "type": "hud",
-              "name": "Управление",
-              "position": [
-                51.845,
-                -17.08,
-                120.665
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": [
-                1,
-                1,
-                1
-              ],
-              "hud": {
-                "file": "hud/keys.html",
-                "follow": "none",
-                "offset": [
-                  0,
-                  0
-                ],
-                "anchor": "top-left",
-                "scale": 1,
-                "bind": null
-              },
-              "visible": true
-            }
           ]
         },
         {
@@ -336,9 +208,9 @@
             {
               "file": "weapons.js",
               "params": {
-                "body": "corinth-cargo-ship-1",
-                "muzzleLeft": "gun-left",
-                "muzzleRight": "gun-right",
+                "body": "corinth-cargo-transported-1",
+                "muzzleLeft": "gun-left-1",
+                "muzzleRight": "gun-right-1",
                 "targetDistance": 500,
                 "laserDuration": 0.45,
                 "pointerWidth": 8,
@@ -355,8 +227,8 @@
             {
               "file": "mining.js",
               "params": {
-                "origin": "mining-origin",
-                "body": "corinth-cargo-ship-1",
+                "origin": "mining-origin-1",
+                "body": "corinth-cargo-transported-1",
                 "range": 60,
                 "cycleTime": 2.6,
                 "decay": 0.7,
@@ -368,7 +240,7 @@
             {
               "id": "gun-left-1",
               "type": "empty",
-              "name": "Орудие L",
+              "name": "gun-left",
               "position": [
                 0.5,
                 0.823,
@@ -385,7 +257,7 @@
             {
               "id": "gun-right-1",
               "type": "empty",
-              "name": "Орудие R",
+              "name": "gun-right",
               "position": [
                 -0.5,
                 0.823,
@@ -402,7 +274,7 @@
             {
               "id": "mining-origin-1",
               "type": "empty",
-              "name": "Луч добычи",
+              "name": "mining-origin",
               "position": [
                 0,
                 1.152,
@@ -419,7 +291,7 @@
             {
               "id": "camera-1",
               "type": "camera",
-              "name": "Камера",
+              "name": "camera",
               "position": [
                 0,
                 0,
@@ -449,7 +321,7 @@
                 {
                   "file": "camera.js",
                   "params": {
-                    "body": "corinth-cargo-ship-1",
+                    "body": "corinth-cargo-transported-1",
                     "height": 21,
                     "distance": 1,
                     "drop": 6.5,
@@ -465,7 +337,7 @@
             {
               "id": "corinth-cargo-transported-1",
               "type": "model",
-              "name": "меш корабля",
+              "name": "corinth-cargo-transported",
               "asset": "corinth-cargo-transported",
               "position": [
                 0,
@@ -826,10 +698,296 @@
                   ]
                 }
               }
+            },
+            {
+              "id": "corinth-cargo-transported-shield-1",
+              "type": "model",
+              "name": "corinth_cargo_transported_shield",
+              "asset": "corinth-cargo-transported-shield",
+              "materialId": "shield",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "body": {
+                "kind": "static",
+                "collider": {
+                  "shape": "sphere",
+                  "radius": 4.2
+                }
+              },
+              "visible": true,
+              "effects": [
+                {
+                  "id": "effect-1",
+                  "effect": "impact-spark",
+                  "trigger": "manual",
+                  "loop": true,
+                  "duration": 0.35,
+                  "offset": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": 1,
+                  "params": {}
+                }
+              ],
+              "scripts": [
+                {
+                  "file": "ship/shield.js"
+                }
+              ]
+            },
+            {
+              "id": "empty-1",
+              "type": "empty",
+              "name": "HUD",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "children": [
+                {
+                  "id": "hud-menu-1",
+                  "name": "Меню",
+                  "type": "hud",
+                  "position": [
+                    51.845,
+                    22.92,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/menu.html",
+                    "follow": "none",
+                    "anchor": "center",
+                    "startHidden": true
+                  }
+                },
+                {
+                  "id": "hud-mining-1",
+                  "type": "hud",
+                  "name": "Добыча",
+                  "position": [
+                    51.845,
+                    -7.08,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/mining.html",
+                    "follow": "none",
+                    "anchor": "center",
+                    "startHidden": false
+                  }
+                },
+                {
+                  "id": "hud-1",
+                  "type": "hud",
+                  "name": "Оружие",
+                  "position": [
+                    51.845,
+                    -17.08,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/weapons.html",
+                    "bind": null
+                  }
+                },
+                {
+                  "id": "hud-2",
+                  "type": "hud",
+                  "name": "Управление",
+                  "position": [
+                    51.845,
+                    -17.08,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/keys.html",
+                    "follow": "none",
+                    "offset": [
+                      0,
+                      0
+                    ],
+                    "anchor": "top-left",
+                    "scale": 1,
+                    "bind": null
+                  },
+                  "visible": true
+                }
+              ],
+              "prefabId": "hud",
+              "prefabTitle": "HUD"
+            },
+            {
+              "id": "empty-2",
+              "type": "empty",
+              "name": "weapon-target",
+              "position": [
+                0,
+                0,
+                -50
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "children": [],
+              "scripts": [
+                {
+                  "file": "target.js",
+                  "params": {
+                    "player": "player-ship-1",
+                    "reticle": "reticle-1"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "reticle-1",
+              "type": "reticle",
+              "name": "Прицел",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "reticle": {
+                "size": 34,
+                "color": "#68daff",
+                "aimColor": "#ffc857"
+              },
+              "children": [],
+              "scripts": [
+                {
+                  "file": "reticles/crosshair.js",
+                  "params": {
+                    "spin": 24,
+                    "scan": 4.8,
+                    "breathe": 2.8
+                  }
+                },
+                {
+                  "file": "reticle.js",
+                  "params": {}
+                }
+              ]
             }
           ],
           "prefabId": "igrok",
           "prefabTitle": "Игрок"
+        },
+        {
+          "id": "reticle-cursor-1",
+          "type": "reticle",
+          "name": "Курсор",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1,
+          "reticle": {
+            "size": 24,
+            "color": "#9fe4ff",
+            "aimColor": "#ffc857"
+          },
+          "scripts": [
+            {
+              "file": "reticles/circle.js",
+              "params": {
+                "spin": 18,
+                "scan": 4.5,
+                "breathe": 2.6
+              }
+            },
+            {
+              "file": "cursor.js",
+              "params": {}
+            }
+          ],
+          "children": []
         }
       ]
     }

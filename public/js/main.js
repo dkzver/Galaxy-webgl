@@ -6,11 +6,16 @@ import { attachBodies, bindEffectTriggers, buildScene, updateScene } from './sce
 import { PhysicsWorld, boxShape, compoundShape, sphereShape, getWorldBoxes, getWorldSpheres } from './physics.js';
 import { EffectSystem } from './effects.js';
 import { cursorRayDirection } from './mining.js';
+import { pickClosest } from './picking.js';
 import { ScriptRuntime } from './script-runtime.js';
+import { createReticleView } from './reticle-view.js';
 import { createPrefabRuntime } from './prefab-runtime.js';
 import { createProjectilePool } from './projectile-pool.js';
 import { createProjectileSystem } from './projectiles.js';
+import { partHidden } from './model-split.js';
 import { pushWireBoxCorners, pushWireSphere } from './wire.js';
+import { shieldVS, shieldFS } from './render/shield-shader.js';
+import { normalizeMaterial } from './materials.js';
 
 const canvas = document.getElementById('scene');
 const overlay = document.getElementById('overlay');
@@ -18,6 +23,7 @@ let overlayText = document.getElementById('overlay-text');
 
 function fail(message) {
   loadingState.error = message;
+  if (window.__galaxy) window.__galaxy.error = message;
   overlay.classList.remove('hidden');
   overlayText = document.getElementById('overlay-text');
 
@@ -280,13 +286,14 @@ void main() {
   gl_FragColor = vec4(uColor, a);
 }`;
 
-let meshProgram, glowProgram, beamProgram, debugProgram, smokeProgram;
+let meshProgram, glowProgram, beamProgram, debugProgram, smokeProgram, shieldProgram;
 try {
   meshProgram = createProgram(gl, meshVS, meshFS);
   glowProgram = createProgram(gl, glowVS, glowFS);
   beamProgram = createProgram(gl, beamVS, beamFS);
   debugProgram = createProgram(gl, debugVS, debugFS);
   smokeProgram = createProgram(gl, smokeVS, smokeFS);
+  shieldProgram = createProgram(gl, shieldVS, shieldFS);
 } catch (err) {
   fail(err.message);
   throw err;
@@ -314,6 +321,11 @@ const debugLoc = {
 const smokeLoc = {
   aQuad: gl.getAttribLocation(smokeProgram.program, 'aQuad'),
   u: smokeProgram.uniforms
+};
+const shieldLoc = {
+  aPosition: gl.getAttribLocation(shieldProgram.program, 'aPosition'),
+  aNormal: gl.getAttribLocation(shieldProgram.program, 'aNormal'),
+  u: shieldProgram.uniforms
 };
 
 const glowQuadBuffer = (() => {
@@ -376,10 +388,20 @@ window.addEventListener('blur', () => {
 /* --- мышь: курсор задаёт направление --- */
 
 const cursor = { x: 0, y: 0 }; // нормализованные координаты, -1..1
+// Экранная точка курсора: по ней движок ставит прицел-виджет у мыши
+const cursorScreen = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+let hoveredPointerEntity = null; // модель под курсором (наведение мыши)
 // Курсоры могут переехать в HTML-слои сцены, поэтому не const
 let reticle = document.getElementById('reticle');
 let targetMarker = document.getElementById('target-marker');
 let targetProgressEl = document.getElementById('target-progress');
+let reticleView = null;      // прицел из скрипта reticle.js (дизайн в reticles.js)
+let scriptedTarget = null;   // последняя точка и состояние от скрипта
+let cursorReticleView = null; // виджет у курсора мыши (api.target.cursor)
+let scriptedCursor = null;    // конфиг и состояние для него
+let sceneCursorId = null;     // ссылка сцены на объект-курсор
+let sceneCursorEntity = null;
+let sceneCursorView = null;
 
 // Слои HUD из сцены: движок только вставляет HTML, положение задаёт их CSS
 let hudLayers = [];
@@ -434,12 +456,16 @@ function trackCursor(event) {
   }
 
   const rect = canvas.getBoundingClientRect();
+  cursorScreen.x = event.clientX;
+  cursorScreen.y = event.clientY;
   cursor.x = clamp(((event.clientX - rect.left) / rect.width) * 2 - 1, -1, 1);
   cursor.y = clamp(((event.clientY - rect.top) / rect.height) * 2 - 1, -1, 1);
   if (reticle) {
     reticle.style.left = `${event.clientX}px`;
     reticle.style.top = `${event.clientY}px`;
   }
+
+  updatePointerHover();
 }
 
 function shipVisualQuaternion() {
@@ -453,6 +479,7 @@ function beginOrbit(event) {
   orbit.active = true;
   orbit.lastX = event.clientX;
   orbit.lastY = event.clientY;
+  clearPointerHover();
 
   const visual = shipVisualQuaternion();
 
@@ -510,6 +537,8 @@ function endOrbit() {
   camera.pitchRate = 0;
   cursor.x = 0;
   cursor.y = 0;
+  cursorScreen.x = window.innerWidth / 2;
+  cursorScreen.y = window.innerHeight / 2;
 
   if (reticle) {
     reticle.style.left = `${window.innerWidth / 2}px`;
@@ -534,7 +563,10 @@ canvas.addEventListener('auxclick', (event) => {
 });
 
 window.addEventListener('mousedown', (event) => {
-  if (event.button === 0) mouse.down = true;
+  if (event.button === 0) {
+    mouse.down = true;
+    handlePointerClick(event);
+  }
 });
 
 window.addEventListener('mouseup', (event) => {
@@ -963,7 +995,7 @@ function computeTargetWorld() {
   ];
 }
 
-function updateTargetMarker(worldPoint) {
+function updateTargetMarker(worldPoint, { applyDom = true } = {}) {
 
   if (worldPoint) {
     targetState.world[0] = worldPoint[0];
@@ -978,7 +1010,7 @@ function updateTargetMarker(worldPoint) {
     targetState.screen = null;
     targetState.ndc = null;
     targetState.ndcZ = null;
-    if (targetMarker) targetMarker.classList.remove('visible');
+    if (applyDom && targetMarker) targetMarker.classList.remove('visible');
     return;
   }
 
@@ -987,11 +1019,185 @@ function updateTargetMarker(worldPoint) {
   targetState.ndc = projected.ndc;
   targetState.ndcZ = projected.ndcZ;
 
-  if (targetMarker) {
+  if (applyDom && targetMarker) {
     targetMarker.style.left = `${projected.x}px`;
     targetMarker.style.top = `${projected.y}px`;
     targetMarker.classList.add('visible');
   }
+}
+
+/* ---------------------------- Прицел из скрипта --------------------------- */
+
+function ensureReticleView() {
+  if (!reticleView) {
+    reticleView = createReticleView({ mount: document.body });
+    if (window.__galaxy) window.__galaxy.reticle = reticleView;
+  }
+
+  return reticleView;
+}
+
+/**
+ * Экранная точка прицела и расстояние до центра кадра.
+ * Нужно скрипту reticle.js для проверки наведения.
+ */
+function aimScreen() {
+  const point = targetState.world.slice();
+  const projected = targetState.visible ? projectToScreen(point) : null;
+  if (!projected) return { point, visible: false, px: null, distance: Infinity };
+
+  const rect = canvas.getBoundingClientRect();
+  return {
+    point,
+    visible: true,
+    px: { x: projected.x, y: projected.y },
+    distance: Math.hypot(
+      projected.x - (rect.left + rect.width / 2),
+      projected.y - (rect.top + rect.height / 2)
+    )
+  };
+}
+
+/** API прицела для скриптов: точка, конфиг сущности и состояние. */
+const targetsApi = {
+  show(options = {}) {
+    const point = Array.isArray(options.point) && options.point.length >= 3
+      ? options.point.slice(0, 3).map((value) => Number(value) || 0)
+      : null;
+    if (!point) return null;
+
+    scriptedTarget = {
+      point,
+      config: options.config || null,
+      state: options.state || {}
+    };
+    return point;
+  },
+
+  hide() {
+    if (!scriptedTarget) return false;
+    scriptedTarget = null;
+    return true;
+  },
+
+  pulse() {
+    ensureReticleView().pulse();
+    if (cursorReticleView) cursorReticleView.pulse();
+    if (sceneCursorView) sceneCursorView.pulse();
+    return true;
+  },
+
+  /** Виджет у курсора мыши: тот же прицел, другой якорь. */
+  cursor(options = {}) {
+    if (!options.config) {
+      scriptedCursor = null;
+      return false;
+    }
+
+    scriptedCursor = { config: options.config, state: options.state || {} };
+    return true;
+  },
+
+  hideCursor() {
+    if (!scriptedCursor) return false;
+    scriptedCursor = null;
+    return true;
+  },
+
+  aim: () => aimScreen()
+};
+
+/** Прицел ведёт скрипт: старый маркер молчит, позицию берём из мировой точки. */
+function updateScriptedTarget() {
+  const view = ensureReticleView();
+  if (targetMarker) targetMarker.classList.remove('visible');
+
+  if (!scriptedTarget || paused) {
+    view.hide();
+    return;
+  }
+
+  const projected = projectToScreen(scriptedTarget.point);
+  if (!projected) {
+    view.hide();
+    return;
+  }
+
+  view.setConfig(scriptedTarget.config);
+  view.setState(scriptedTarget.state);
+  view.setPosition(projected.x, projected.y, true);
+}
+
+function ensureCursorView() {
+  if (!cursorReticleView) {
+    cursorReticleView = createReticleView({ mount: document.body });
+    cursorReticleView.element.classList.add('weapon-reticle--cursor');
+    if (window.__galaxy) window.__galaxy.cursorReticle = cursorReticleView;
+  }
+
+  return cursorReticleView;
+}
+
+function ensureSceneCursorView() {
+  if (!sceneCursorView) {
+    sceneCursorView = createReticleView({ mount: document.body });
+    sceneCursorView.element.classList.add('weapon-reticle--cursor');
+    if (window.__galaxy) window.__galaxy.cursorReticle = sceneCursorView;
+  }
+
+  return sceneCursorView;
+}
+
+function hideCursorLayers() {
+  if (cursorReticleView) cursorReticleView.hide();
+  if (sceneCursorView) sceneCursorView.hide();
+  document.body.classList.remove('cursor-widget');
+}
+
+/**
+ * Виджет у курсора. Основной путь — скрипт cursor.js на объекте; если роли нет,
+ * движок сам показывает объект, выбранный в сцене полем «Курсор».
+ */
+function updateScriptedCursor() {
+  if (scriptedCursor) {
+    const view = ensureCursorView();
+    if (sceneCursorView) sceneCursorView.hide();
+
+    if (paused || orbit.active) {
+      view.hide();
+      document.body.classList.remove('cursor-widget');
+      return;
+    }
+
+    view.setConfig(scriptedCursor.config);
+    view.setState(scriptedCursor.state);
+    view.setPosition(cursorScreen.x, cursorScreen.y, true);
+    document.body.classList.add('cursor-widget');
+    return;
+  }
+
+  if (!sceneCursorId || !sceneCursorEntity) {
+    hideCursorLayers();
+    return;
+  }
+
+  const view = ensureSceneCursorView();
+  if (cursorReticleView) cursorReticleView.hide();
+
+  if (paused || orbit.active) {
+    view.hide();
+    document.body.classList.remove('cursor-widget');
+    return;
+  }
+
+  const raw = sceneCursorEntity.raw || {};
+  view.setConfig({
+    ...(raw.reticle && typeof raw.reticle === 'object' ? raw.reticle : {}),
+    design: sceneCursorEntity.reticleDesign || null
+  });
+  view.setState({});
+  view.setPosition(cursorScreen.x, cursorScreen.y, true);
+  document.body.classList.add('cursor-widget');
 }
 
 
@@ -1213,7 +1419,12 @@ function syncCameraAvailabilityUI(available) {
 }
 
 function hudLayerById(id) {
-  return hudLayers.find((layer) => layer.entity.id === id) || null;
+  const layer = hudLayers.find((item) => item.entity.id === id);
+  if (layer) return layer;
+
+  // Префаб перенумеровал сущность («hud-menu» → «hud-menu-1»):
+  // слой тот же, ищем по префиксу
+  return hudLayers.find((item) => item.entity.id.startsWith(`${id}-`)) || null;
 }
 
 /** Показ/скрытие слоёв из скриптов и консоли. */
@@ -1296,6 +1507,8 @@ const hudApi = {
 // Низкоуровневые эффекты: скрипты присылают лучи, трассеры и ракеты,
 // движок только рисует их и гасит по ttl.
 const effects = new EffectSystem();
+// Материалы как данные: id → нормализованное описание (public/materials)
+const materials = new Map();
 
 // Отдача от столкновения: тряска камеры и короткая вспышка
 const impact = { shake: 0 };
@@ -1584,6 +1797,7 @@ window.__galaxy = {
   camera,
   orbit,
   target: targetState,
+  targets: targetsApi,
   effects,
   cursor,
   keys,
@@ -1793,6 +2007,82 @@ function cursorRay() {
   };
 }
 
+/* ------------------------- Взаимодействие с мышью ------------------------- */
+
+/** Луч из камеры через курсор — для наведения и клика по моделям. */
+function pointerRay() {
+  const aspect = canvas.width / Math.max(1, canvas.height);
+
+  return {
+    origin: camera.pos.slice(),
+    direction: cursorRayDirection(
+      viewMatrix,
+      cursor.x,
+      -cursor.y,
+      aspect,
+      ((cameraTuning.fov || 50) * Math.PI) / 180
+    )
+  };
+}
+
+/** Модели, у которых в настройках включён нужный флажок мыши. */
+function pointerCandidates(flag) {
+  return sceneEntities.filter((entity) => entity.raw?.mouse?.[flag]
+    && entity.visible !== false
+    && entity.model?.bounds);
+}
+
+function clearPointerHover() {
+  if (!hoveredPointerEntity) return;
+
+  const previous = hoveredPointerEntity;
+  hoveredPointerEntity = null;
+  scripts?.emit({ type: 'pointer.leave', id: previous.id, entity: previous });
+}
+
+/** Наведение: событие при входе в модель и при выходе из неё. */
+function updatePointerHover() {
+  if (!scripts || paused || menuOpen || orbit.active) {
+    clearPointerHover();
+    return;
+  }
+
+  const candidates = pointerCandidates('hover');
+  if (!candidates.length) {
+    clearPointerHover();
+    return;
+  }
+
+  const hit = pickClosest(pointerRay(), candidates);
+  const entity = hit?.entity || null;
+  if (entity === hoveredPointerEntity) return;
+
+  const previous = hoveredPointerEntity;
+  hoveredPointerEntity = entity;
+
+  if (previous) scripts.emit({ type: 'pointer.leave', id: previous.id, entity: previous });
+  if (entity) scripts.emit({ type: 'pointer.hover', id: entity.id, entity, point: hit.point });
+}
+
+/** Клик: событие только по моделям с включённым флажком «определять клик». */
+function handlePointerClick(event) {
+  if (!scripts || paused || menuOpen || orbit.active) return;
+
+  const candidates = pointerCandidates('click');
+  if (!candidates.length) return;
+
+  const hit = pickClosest(pointerRay(), candidates);
+  if (!hit) return;
+
+  scripts.emit({
+    type: 'pointer.click',
+    id: hit.entity.id,
+    entity: hit.entity,
+    point: hit.point,
+    screen: { x: cursorScreen.x, y: cursorScreen.y }
+  });
+}
+
 // Сцена целиком описана в public/scenes/*.scene.json: меши, тела,
 // вращение и зоны добычи собирает scene-runtime.js.
 
@@ -1942,6 +2232,9 @@ function drawMeshPart(part, matrix, emissive = part.emissive) {
     gl.bindTexture(gl.TEXTURE_2D, part.material.rough);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, part.material.metal);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, part.material.emissive || part.material.albedo);
+    gl.uniform1f(meshLoc.u.uEmissiveMapOn, part.material.emissive ? 1 : 0);
     gl.uniform1f(meshLoc.u.uTextured, 1);
   } else {
     gl.uniform1f(meshLoc.u.uTextured, 0);
@@ -1958,6 +2251,26 @@ function drawMeshPart(part, matrix, emissive = part.emissive) {
   gl.bindBuffer(gl.ARRAY_BUFFER, part.mesh.uvBuffer);
   gl.enableVertexAttribArray(meshLoc.aUv);
   gl.vertexAttribPointer(meshLoc.aUv, 2, gl.FLOAT, false, 0, 0);
+
+  if (part.mesh.indexBuffer) {
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.mesh.indexBuffer);
+    gl.drawElements(gl.TRIANGLES, part.mesh.count, part.mesh.indexType, 0);
+  } else {
+    gl.drawArrays(gl.TRIANGLES, 0, part.mesh.count);
+  }
+}
+
+/** Деталь щита: та же геометрия, но программа shield и без текстур. */
+function drawShieldPart(part, matrix) {
+  gl.uniformMatrix4fv(shieldLoc.u.uModel, false, matrix);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, part.mesh.positionBuffer);
+  gl.enableVertexAttribArray(shieldLoc.aPosition);
+  gl.vertexAttribPointer(shieldLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, part.mesh.normalBuffer);
+  gl.enableVertexAttribArray(shieldLoc.aNormal);
+  gl.vertexAttribPointer(shieldLoc.aNormal, 3, gl.FLOAT, false, 0, 0);
 
   if (part.mesh.indexBuffer) {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.mesh.indexBuffer);
@@ -2013,6 +2326,9 @@ function render(time) {
   if (!cameraAvailable) {
     cameraPositionReady = false;
     updateTargetMarker(null);
+    if (reticleView) reticleView.hide();
+    if (cursorReticleView) cursorReticleView.hide();
+    if (sceneCursorView) sceneCursorView.hide();
     for (const layer of hudLayers) {
       if (layer.hud.follow !== 'mouse') layer.el.classList.remove('visible');
     }
@@ -2146,7 +2462,12 @@ function render(time) {
 
   // Добыча считается после камеры: луч целится через курсор мыши.
 
-  updateTargetMarker(targetWorld);
+  // Старый маркер выключен: прицел рисует только объект со скриптом reticle.js.
+  // Мировая точка всё равно обновляется — её читает api.target.aim().
+  updateTargetMarker(targetWorld, { applyDom: false });
+  if (scriptOwns('reticle')) updateScriptedTarget();
+  updateScriptedCursor();
+
   updateAttachedHud();
 
   const background = cameraBackgroundRgb();
@@ -2167,10 +2488,16 @@ function render(time) {
     gl.uniform1i(meshLoc.u.uAlbedoMap, 0);
     gl.uniform1i(meshLoc.u.uRoughMap, 1);
     gl.uniform1i(meshLoc.u.uMetalMap, 2);
+    gl.uniform1i(meshLoc.u.uEmissiveMap, 3);
 
     const drawList = sceneEntities
       .filter((entity) => entity.model && entity.visible !== false)
-      .map((entity) => ({ model: entity.model, matrix: entity.matrix }));
+      .map((entity) => ({
+        model: entity.model,
+        matrix: entity.matrix,
+        entity,
+        material: entity.raw?.materialId ? materials.get(entity.raw.materialId) : null
+      }));
 
     // В сцене игрок — обычная сущность: её модель уже в sceneEntities
     if (!playerEntity && shipModel) drawList.push({ model: shipModel, matrix: shipMatrix });
@@ -2179,6 +2506,8 @@ function render(time) {
     for (const item of drawList) {
       for (const part of item.model.parts) {
         if (part.blend === 'additive') continue;
+        if (item.material?.shader === 'shield') continue;
+        if (partHidden(item.entity?.raw?.hiddenParts, part.name)) continue;
         drawMeshPart(part, M4.mul(item.matrix, part.matrix));
       }
     }
@@ -2192,8 +2521,75 @@ function render(time) {
     for (const item of drawList) {
       for (const part of item.model.parts) {
         if (part.blend !== 'additive') continue;
+        if (item.material?.shader === 'shield') continue;
+        if (partHidden(item.entity?.raw?.hiddenParts, part.name)) continue;
         drawMeshPart(part, M4.mul(item.matrix, part.matrix), part.emissive.map((c) => c * pulse));
       }
+    }
+
+    /* --- энергетические щиты: прозрачная оболочка + пятна попаданий --- */
+    const shields = drawList.filter((item) => item.material?.shader === 'shield');
+    if (shields.length) {
+      gl.useProgram(shieldProgram.program);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(false);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+
+      gl.uniformMatrix4fv(shieldLoc.u.uViewProj, false, viewProj);
+      gl.uniform3fv(shieldLoc.u.uCamera, camera.pos);
+
+      const hitData = new Float32Array(16);
+
+      for (const item of shields) {
+        const uniforms = item.material.uniforms || {};
+
+        gl.uniform3fv(shieldLoc.u.uColor, hexToRgb(uniforms.color, [0.35, 0.85, 1]));
+        gl.uniform3fv(shieldLoc.u.uHitColor, hexToRgb(uniforms.hitColor, [0.92, 1, 1]));
+        gl.uniform1f(shieldLoc.u.uBase, Number(uniforms.base) || 0);
+        gl.uniform1f(shieldLoc.u.uFresnel, Number(uniforms.fresnel) || 3);
+        gl.uniform1f(shieldLoc.u.uHitRadius, Number(uniforms.hitRadius) || 1.4);
+        gl.uniform1f(shieldLoc.u.uHexScale, Number(uniforms.hexScale) || 6);
+        gl.uniform1f(shieldLoc.u.uPatchLife, Number(uniforms.patchLife) || 0.35);
+        gl.uniform1f(shieldLoc.u.uRingLife, Number(uniforms.ringLife) || 0.3);
+
+        hitData.fill(0);
+        for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;
+
+        const hits = item.entity?.shieldHits || [];
+        for (let i = 0; i < Math.min(4, hits.length); i++) {
+          const hit = hits[i];
+          if (!hit?.position) continue;
+
+          hitData[i * 4] = hit.position[0];
+          hitData[i * 4 + 1] = hit.position[1];
+          hitData[i * 4 + 2] = hit.position[2];
+          hitData[i * 4 + 3] = Math.max(0, Number(hit.age) || 0);
+        }
+        gl.uniform4fv(shieldLoc.u.uHits, hitData);
+
+        for (const part of item.model.parts) {
+          if (partHidden(item.entity?.raw?.hiddenParts, part.name)) continue;
+          drawShieldPart(part, M4.mul(item.matrix, part.matrix));
+        }
+
+        // Пятна попаданий — поверх корпуса: оболочка почти совпадает с обшивкой,
+        // и без этого прохода глубина съедала бы вспышку
+        if (hits.length) {
+          gl.disable(gl.DEPTH_TEST);
+
+          for (const part of item.model.parts) {
+            if (partHidden(item.entity?.raw?.hiddenParts, part.name)) continue;
+            drawShieldPart(part, M4.mul(item.matrix, part.matrix));
+          }
+
+          gl.enable(gl.DEPTH_TEST);
+        }
+      }
+
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
     }
 
     // Ореолы сущностей: билборд из центра; грани перекрывают его, остаётся сияние вокруг
@@ -2305,6 +2701,51 @@ async function defaultSceneId() {
   }
 }
 
+/**
+ * Загрузить скрипт сцены и дать ему построить кадр через api.scene.build().
+ * Движок использует только то, что скрипт передал в build.
+ */
+async function bootstrapSceneScript(document) {
+  const script = document.scripts[0];
+  if (!script) throw new Error('у сцены нет скрипта');
+
+  const url = new URL(`scripts/${script.file}`, `${location.origin}/`);
+  url.searchParams.set('t', String(Date.now()));
+  const module = await import(url.href);
+  const definition = module.default || module;
+
+  const schema = module.params && typeof module.params === 'object' ? module.params : {};
+  const defaults = {};
+  for (const [key, meta] of Object.entries(schema)) {
+    if (meta && Object.prototype.hasOwnProperty.call(meta, 'default')) defaults[key] = meta.default;
+  }
+
+  const params = { ...defaults, ...(script.params || {}) };
+  let options = null;
+
+  const ctx = {
+    entity: { id: document.scene?.id || 'scene', type: 'scene', raw: { type: 'scene' } },
+    params,
+    state: {},
+    api: {
+      claim() {},
+      log: (...args) => console.log('[scene]', ...args),
+      scene: {
+        build: (value) => {
+          options = value && typeof value === 'object' ? { ...value } : {};
+        }
+      }
+    }
+  };
+
+  if (typeof definition.init === 'function') definition.init(ctx);
+  if (!options) {
+    throw new Error(`скрипт сцены ${script.file} не вызвал api.scene.build(...)`);
+  }
+
+  return { file: script.file, definition, params, options };
+}
+
 (async () => {
   try {
     const params = new URLSearchParams(location.search);
@@ -2312,8 +2753,25 @@ async function defaultSceneId() {
     const sceneId = params.get('scene') || (await defaultSceneId());
 
     scene = await loadScene(sceneId);
-    // Стили HUD — из корневого объекта «Сцена», одни на все слои
-    applySceneHudStyle(scene.scene?.hudStyle);
+
+    // Скрипт сцены обязателен: он строит кадр через api.scene.build()
+    if (!Array.isArray(scene.scripts) || !scene.scripts.length) {
+      fail('Сцена требует скрипт сцены (например first-screen.js) для взаимодействия с движком');
+      return;
+    }
+
+    const sceneBootstrap = await bootstrapSceneScript(scene);
+    const build = sceneBootstrap.options;
+
+    // Только то, что скрипт передал в build; корневые поля сцены не читаются
+    scene.background = build.background || '#000000';
+    scene.scene.background = scene.background;
+    scene.scene.hudStyle = build.hudStyle || null;
+    scene.scene.loading = { file: build.loadingFile || '', script: build.loadingScript || '' };
+    scene.cursor = build.cursor || null;
+
+    // Стили HUD — из скрипта сцены, одни на все слои
+    applySceneHudStyle(scene.scene.hudStyle);
 
     // Загрузочный экран — ассет сцены (HTML + скрипт)
     await startLoadingScreen(scene.scene?.loading);
@@ -2327,6 +2785,21 @@ async function defaultSceneId() {
       }
     } catch (err) {
       console.warn('[effects] определения не загружены:', err.message);
+    }
+
+    // Материалы — те же данные, что увидит редактор; шейдер берёт uniforms
+    try {
+      const materialList = await fetch('/api/materials', { cache: 'no-store' }).then((response) => response.json());
+      for (const item of materialList.materials || []) {
+        try {
+          const material = normalizeMaterial(item, item.id);
+          materials.set(material.id, material);
+        } catch (err) {
+          console.warn(`[materials] ${item.id}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.warn('[materials] список не загружен:', err.message);
     }
 
     sceneEntities = await buildScene(gl, scene, {
@@ -2344,6 +2817,12 @@ async function defaultSceneId() {
     playerEntity = sceneEntities.find((entity) => !entity.parent
       && Array.isArray(entity.scripts)
       && entity.scripts.some((script) => (script.file || script) === 'input.js')) || null;
+
+    // Ссылка сцены на объект-курсор: пусто — системный указатель
+    sceneCursorId = scene.cursor || null;
+    sceneCursorEntity = sceneCursorId
+      ? sceneEntities.find((entity) => entity.id === sceneCursorId) || null
+      : null;
 
     if (playerEntity) {
       shipModel = modelOfEntity(playerEntity);
@@ -2373,7 +2852,13 @@ async function defaultSceneId() {
         prefabRuntime = createPrefabRuntime({ gl, physics, effects, entities: sceneEntities });
         const pool = createProjectilePool({ runtime: prefabRuntime, effects, prefab: 'rocket', size: 8 });
         await pool.prewarm();
-        projectiles = createProjectileSystem({ physics, effects, entities: sceneEntities, pool });
+        projectiles = createProjectileSystem({
+          physics,
+          effects,
+          entities: sceneEntities,
+          pool,
+          onHit: (event) => scripts?.emit({ type: 'projectile.hit', ...event })
+        });
         window.__galaxy.projectiles = projectiles;
       } catch (err) {
         console.warn('[projectiles] пул ракет не собран:', err.message);
@@ -2387,6 +2872,7 @@ async function defaultSceneId() {
 
     window.__galaxy.scene = scene;
     window.__galaxy.entities = sceneEntities;
+    window.__galaxy.materials = materials;
     window.__galaxy.hud = hudApi;
     window.__galaxy.camera = cameraApi;
     window.__galaxy.setTarget = (target) => {
@@ -2411,9 +2897,18 @@ async function defaultSceneId() {
       camera: cameraApi,
       hud: hudApi,
       projectiles,
-      prefabs: prefabRuntime
+      prefabs: prefabRuntime,
+      targets: targetsApi
     });
-    await scripts.loadAll();
+    await scripts.loadAll('../scripts/', { sceneScriptsReady: true });
+
+    // Скрипт сцены должен реально загрузиться — без него игра не стартует
+    const sceneScriptFile = scene.scripts[0]?.file || '';
+    if (sceneScriptFile && scripts.errors.some((error) => error.includes(`загрузка ${sceneScriptFile}`))) {
+      fail(`Скрипт сцены ${sceneScriptFile} не загрузился`);
+      return;
+    }
+
     setLoadingProgress(0.92);
     window.__galaxy.scripts = scripts;
 
@@ -2468,6 +2963,6 @@ async function defaultSceneId() {
     });
   } catch (err) {
     console.error(err);
-    fail(`Не удалось загрузить модель корабля: ${err.message}`);
+    fail(`Не удалось загрузить сцену: ${err.message}`);
   }
 })();

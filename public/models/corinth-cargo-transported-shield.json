@@ -1,0 +1,40 @@
+{
+  "id": "corinth-cargo-transported-shield",
+  "name": "corinth_cargo_transported_shield",
+  "length": 7.6765,
+  "bounds": {
+    "min": [
+      -2.319,
+      -1.2725,
+      -4.1482
+    ],
+    "max": [
+      2.3076,
+      1.6701,
+      3.5283
+    ]
+  },
+  "radius": 4.1872,
+  "bytes": 313376,
+  "groups": [
+    {
+      "name": "Energy_Shield_Mesh",
+      "texture": null,
+      "color": "#14a6ff",
+      "metal": 0.10000000149011612,
+      "specular": 1.2499999940395354,
+      "vertexCount": 7540,
+      "indexCount": 36048,
+      "positionByteOffset": 0,
+      "normalByteOffset": 90480,
+      "uvByteOffset": 180960,
+      "indexByteOffset": 241280,
+      "glow": "#1abfff",
+      "glowIntensity": 1
+    }
+  ],
+  "textureColor": true,
+  "textureMaps": [
+    "base"
+  ]
+}

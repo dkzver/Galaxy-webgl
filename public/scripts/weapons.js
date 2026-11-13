@@ -132,7 +132,43 @@ export default {
     this.updateBurst(ctx, step, blocked);
     this.updateTracers(ctx, step);
     this.drawBeam(ctx);
+    this.publishStatus(ctx);
     this.updateHud(ctx);
+  },
+
+  /** Статус для других скриптов: прицел читает его через api.shared. */
+  publishStatus(ctx) {
+    const state = ctx.state;
+    const weapon = WEAPONS[state.index];
+    if (!weapon) return;
+
+    const totals = {
+      machinegun: number(ctx.params.mgCooldown, 0.8, 0, 10),
+      rocket: number(ctx.params.rocketCooldown, 1.4, 0, 20)
+    };
+    const cooldown = state.cooldowns[weapon.id] || 0;
+
+    ctx.api.shared?.set?.('weapons.status', {
+      id: weapon.id,
+      mode: weapon.mode,
+      cooldown,
+      cooldownTotal: totals[weapon.id] || 0,
+      burstRemaining: state.burstRemaining,
+      burstTotal: state.burstTotal,
+      beamPulse: state.beamPulse,
+      beamHold: state.beamHold,
+      firing: state.burstRemaining > 0 || state.beamPulse > 0 || state.beamHold
+    });
+  },
+
+  /** Событие выстрела — прицел ловит его и мигает ядром. */
+  shot(ctx, weapon, kind) {
+    ctx.api.emit?.({
+      type: 'weapon.fire',
+      weapon: weapon.id,
+      mode: weapon.mode,
+      kind
+    });
   },
 
   selectByKeys(ctx) {
@@ -157,11 +193,13 @@ export default {
 
     if (weapon.mode === 'pulse') {
       state.beamPulse = number(ctx.params.laserDuration, 0.45, 0.05, 5);
+      this.shot(ctx, weapon, 'pulse');
       return;
     }
 
     if (weapon.mode === 'hold') {
       state.beamHold = true;
+      this.shot(ctx, weapon, 'beam');
       return;
     }
 
@@ -186,6 +224,7 @@ export default {
 
       this.spawnRocket(ctx);
       state.cooldowns.rocket = number(ctx.params.rocketCooldown, 1.4, 0, 20);
+      this.shot(ctx, weapon, 'rocket');
     }
   },
 
@@ -246,6 +285,8 @@ export default {
 
     const direction = normalize(sub(target, origin));
     const id = `tracer-${++ctx.state.smoke}`;
+
+    this.shot(ctx, WEAPONS[2], 'tracer');
 
     ctx.state.tracers.set(id, {
       position: origin.slice(),
@@ -389,6 +430,7 @@ export default {
   },
 
   dispose(ctx) {
+    ctx.api.shared?.delete?.('weapons.status');
     ctx.api.effects?.clear?.();
   }
 };

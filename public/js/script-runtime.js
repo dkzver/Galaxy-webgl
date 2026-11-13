@@ -17,7 +17,7 @@ import { triggerContains } from './scene-runtime.js';
 import { quatFromAxisAngle, quatMul, quatNormalize } from './math.js';
 
 export class ScriptRuntime {
-  constructor({ scene, entities, ship, player = null, input = null, flight = null, effects = null, mining = null, miningTargets = null, hud = null, camera = null, projectiles = null, prefabs = null }) {
+  constructor({ scene, entities, ship, player = null, input = null, flight = null, effects = null, mining = null, miningTargets = null, hud = null, camera = null, projectiles = null, prefabs = null, targets = null }) {
     this.scene = scene;
     this.entities = entities;
     this.ship = ship;
@@ -31,10 +31,15 @@ export class ScriptRuntime {
     this.camera = camera;
     this.projectiles = projectiles;
     this.prefabs = prefabs;
+    this.targets = targets;
     this.time = 0;
     this.instances = [];
     this.listeners = new Map();
     this.errors = [];
+
+    // Общее состояние скриптов сцены: оружие публикует статус, прицел читает.
+    // Это канал между скриптами, а не движком: содержимое — их договорённость.
+    this.shared = new Map();
 
     // Скрипты заявляют подсистемы, которые взяли на себя: движок
     // перестаёт делать это сам, иначе управление сработает дважды
@@ -106,6 +111,22 @@ export class ScriptRuntime {
       projectiles: {
         fire: (options) => this.projectiles?.fire?.(options) || null,
         stats: () => this.projectiles?.stats?.() || null
+      },
+      shared: {
+        get: (key) => this.shared.get(String(key)) ?? null,
+        set: (key, value) => {
+          this.shared.set(String(key), value);
+          return value;
+        },
+        delete: (key) => this.shared.delete(String(key))
+      },
+      target: {
+        show: (options) => this.targets?.show?.(options) || null,
+        hide: () => this.targets?.hide?.() || false,
+        pulse: () => this.targets?.pulse?.() || false,
+        cursor: (options) => this.targets?.cursor?.(options) || false,
+        hideCursor: () => this.targets?.hideCursor?.() || false,
+        aim: () => this.targets?.aim?.() || null
       },
       spawnPrefab: (id, transform) => this.prefabs?.spawn?.(id, transform) || null,
       despawnPrefab: (handle) => this.prefabs?.despawn?.(handle) || false,
@@ -224,9 +245,36 @@ export class ScriptRuntime {
     console.warn('[scripts]', message);
   }
 
-  /** Загрузить все скрипты сущностей и деталей модели. */
-  async loadAll(base = '../scripts/') {
+  /** Загрузить все скрипты сцены и сущностей. */
+  async loadAll(base = '../scripts/', options = {}) {
     const tasks = [];
+
+    // Скрипт самого объекта «Сцена»: обязательная точка входа сцены.
+    // init уже вызван при сборке кадра (api.scene.build), поэтому его пропускаем.
+    const sceneScripts = Array.isArray(this.scene?.scripts) ? this.scene.scripts : [];
+    if (sceneScripts.length) {
+      const root = {
+        id: this.scene?.scene?.id || 'scene',
+        type: 'scene',
+        name: this.scene?.scene?.name || 'Сцена',
+        position: [0, 0, 0],
+        quaternion: [0, 0, 0, 1],
+        matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        children: [],
+        parent: null,
+        raw: { type: 'scene', scripts: sceneScripts }
+      };
+
+      for (const script of sceneScripts) {
+        tasks.push({
+          entity: root,
+          part: null,
+          file: script.file || script,
+          params: script.params || null,
+          skipInit: options.sceneScriptsReady === true
+        });
+      }
+    }
 
     for (const entity of this.entities) {
       for (const script of entity.scripts || []) {
@@ -245,7 +293,7 @@ export class ScriptRuntime {
     }
   }
 
-  async loadOne({ entity, part, file, params: sceneParams = null }, base) {
+  async loadOne({ entity, part, file, params: sceneParams = null, skipInit = false }, base) {
     const path = String(file).startsWith('/') ? String(file) : `${base}${file}`;
 
     try {
@@ -289,7 +337,7 @@ export class ScriptRuntime {
       instance.ctx.state = instance.state;
       this.instances.push(instance);
 
-      if (typeof definition.init === 'function') {
+      if (typeof definition.init === 'function' && !skipInit) {
         definition.init(instance.ctx);
       }
     } catch (err) {

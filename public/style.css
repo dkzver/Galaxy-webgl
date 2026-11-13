@@ -20,7 +20,7 @@ html, body {
   display: block;
   width: 100vw;
   height: 100vh;
-  cursor: none;
+  cursor: default;
 }
 
 /* Хост HUD: слои лежат как обычные блоки страницы — от левого верхнего края.
@@ -35,6 +35,10 @@ html, body {
 }
 
 body.paused #scene { cursor: default; }
+
+/* Виджет курсора из сцены заменяет системный указатель; без выбранного
+   виджета мышь остаётся системной */
+body.cursor-widget #scene { cursor: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -11,6 +11,7 @@ import { createProgram } from '../gl.js';
 import { bytesToBase64, packAsset, parseGlb } from '../glb.js';
 import { meshVS, meshFS } from '../render/mesh-shader.js';
 import { loadBinaryModel } from '../ship.js';
+import { extractModel, listObjects } from '../model-split.js';
 import { pushLine, pushWireBoxCorners, pushWireSphere } from '../wire.js';
 import {
   boxCorners,
@@ -28,6 +29,15 @@ const btnReimport = document.getElementById('btn-reimport');
 const glbInput = document.getElementById('glb-input');
 const saveState = document.getElementById('save-state');
 const summaryEl = document.getElementById('summary');
+
+const partsTree = document.getElementById('parts-tree');
+const partsTotal = document.getElementById('parts-total');
+const btnPartsAll = document.getElementById('btn-parts-all');
+const btnPartsNone = document.getElementById('btn-parts-none');
+const extractId = document.getElementById('extract-id');
+const extractCenter = document.getElementById('extract-center');
+const btnExtract = document.getElementById('btn-extract');
+const extractStatus = document.getElementById('extract-status');
 
 const kindInput = document.getElementById('kind');
 const massInput = document.getElementById('mass');
@@ -88,7 +98,11 @@ const state = {
   selected: -1,
   fitStats: null,
   history: [],
-  redo: []
+  redo: [],
+  assets: [],
+  modelManifest: null,
+  modelParts: [],
+  hiddenGroups: new Set()
 };
 
 /* ----------------------------- Предпросмотр ------------------------------- */
@@ -208,6 +222,9 @@ function drawMeshPart(part, matrix) {
     gl.bindTexture(gl.TEXTURE_2D, part.material.rough);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, part.material.metal);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, part.material.emissive || part.material.albedo);
+    gl.uniform1f(meshLoc.u.uEmissiveMapOn, part.material.emissive ? 1 : 0);
     gl.uniform1f(u.uTextured, 1);
   } else {
     gl.uniform1f(u.uTextured, 0);
@@ -351,8 +368,13 @@ function drawPreview() {
   gl.uniform1i(meshLoc.u.uAlbedoMap, 0);
   gl.uniform1i(meshLoc.u.uRoughMap, 1);
   gl.uniform1i(meshLoc.u.uMetalMap, 2);
+  gl.uniform1i(meshLoc.u.uEmissiveMap, 3);
 
-  for (const part of model.parts) drawMeshPart(part, modelMatrix);
+  // Скрытые части не рисуем: галочки в дереве частей
+  model.parts.forEach((part, index) => {
+    if (state.hiddenGroups.has(index)) return;
+    drawMeshPart(part, modelMatrix);
+  });
 
   // Зелёные боксы — полупрозрачным каркасом поверх корпуса: так видно весь
   // коллайдер, а не только рёбра, торчащие из меша. Выбранный — ярко.
@@ -1142,6 +1164,7 @@ async function loadModel(id) {
     state.info = info;
     renderSummary(info);
     applyPhysics(info.physics || {});
+    await loadModelManifest(id);
     await loadPreview(id);
 
     setStatus('без изменений');
@@ -1159,6 +1182,7 @@ async function loadModels() {
     .catch(() => ({ assets: [] }));
 
   const assets = Array.isArray(data.assets) ? data.assets : [];
+  state.assets = assets;
   modelSelect.innerHTML = assets.map((id) => `<option value="${id}">${id}</option>`).join('');
 
   const requested = new URLSearchParams(location.search).get('model');
@@ -1168,6 +1192,196 @@ async function loadModels() {
   modelSelect.value = id;
   await loadModel(id);
 }
+
+/* ----------------------------- Части модели ------------------------------- */
+
+function escapeHtml(value) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+  return String(value ?? '').replace(/[&<>"]/g, (ch) => map[ch]);
+}
+
+function suggestId(id) {
+  const slug = String(id || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `${slug || 'model'}-part`;
+}
+
+async function loadModelManifest(id) {
+  state.modelManifest = null;
+  state.modelParts = [];
+  state.hiddenGroups = new Set();
+
+  try {
+    const response = await fetch(`models/${encodeURIComponent(id)}.json`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`манифест ${id} не найден`);
+
+    state.modelManifest = await response.json();
+    state.modelParts = listObjects(state.modelManifest);
+    extractId.value = suggestId(id);
+    extractStatus.textContent = '—';
+    renderModelParts();
+  } catch (err) {
+    partsTree.innerHTML = '<p class="hint-inline">части не загружены</p>';
+    partsTotal.textContent = '—';
+    extractStatus.textContent = `части недоступны: ${err.message}`;
+  }
+}
+
+function renderModelParts() {
+  const groups = state.modelManifest?.groups || [];
+  if (!state.modelManifest) return;
+
+  if (!groups.length) {
+    partsTree.innerHTML = '<p class="hint-inline">в модели нет групп</p>';
+    partsTotal.textContent = '—';
+    return;
+  }
+
+  partsTree.innerHTML = state.modelParts.map((part, objectIndex) => {
+    const visible = part.indices.filter((index) => !state.hiddenGroups.has(index)).length;
+    const rows = part.indices.map((index) => {
+      const group = groups[index];
+      return `<label class="parts-group"><input type="checkbox" data-group="${index}"${state.hiddenGroups.has(index) ? '' : ' checked'}><span>${escapeHtml(group.name)}</span><em>${Math.round((group.indexCount || 0) / 3)} тр.</em></label>`;
+    }).join('');
+
+    return `<label class="parts-object"><input type="checkbox" data-object="${objectIndex}"${visible ? ' checked' : ''}><span>${escapeHtml(part.name)}</span><em>${part.triangles} тр.</em></label>${rows}`;
+  }).join('');
+
+  syncModelPartChecks();
+}
+
+/** Согласовать галочки объектов и групп после изменения выбора. */
+function syncModelPartChecks() {
+  for (const input of partsTree.querySelectorAll('input[data-group]')) {
+    input.checked = !state.hiddenGroups.has(Number(input.dataset.group));
+  }
+
+  for (const input of partsTree.querySelectorAll('input[data-object]')) {
+    const part = state.modelParts[Number(input.dataset.object)];
+    if (!part) continue;
+
+    const visible = part.indices.filter((index) => !state.hiddenGroups.has(index)).length;
+    input.checked = visible > 0;
+    input.indeterminate = visible > 0 && visible < part.indices.length;
+  }
+
+  updateModelPartsTotal();
+}
+
+function updateModelPartsTotal() {
+  const groups = state.modelManifest?.groups || [];
+  let visible = 0;
+  let triangles = 0;
+
+  for (const [index, group] of groups.entries()) {
+    if (state.hiddenGroups.has(index)) continue;
+    visible += 1;
+    triangles += Math.round((group.indexCount || 0) / 3);
+  }
+
+  partsTotal.textContent = `${visible} из ${groups.length} частей · ${triangles} тр.`;
+}
+
+async function extractSelected() {
+  if (!state.id || !state.modelManifest) {
+    extractStatus.textContent = 'модель не загружена';
+    return;
+  }
+
+  const indices = (state.modelManifest.groups || [])
+    .map((_, index) => index)
+    .filter((index) => !state.hiddenGroups.has(index));
+
+  if (!indices.length) {
+    extractStatus.textContent = 'отметьте хотя бы одну часть';
+    return;
+  }
+
+  const id = extractId.value.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+    extractStatus.textContent = 'id: латиница, цифры и дефис, начиная с буквы или цифры';
+    return;
+  }
+
+  if (state.assets.includes(id) && !confirm(`Модель «${id}» уже есть. Заменить её?`)) return;
+
+  btnExtract.disabled = true;
+  extractStatus.textContent = 'извлечение…';
+
+  try {
+    const buffer = await fetch(`models/${encodeURIComponent(state.id)}.mesh.bin`, { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error('бинарник модели не найден');
+        return response.arrayBuffer();
+      });
+
+    const result = extractModel(state.modelManifest, buffer, {
+      id,
+      indices,
+      recenter: extractCenter.checked
+    });
+
+    const response = await fetch(`/api/asset/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manifest: result.manifest, binBase64: bytesToBase64(result.bin), textures: [] })
+    });
+
+    if (!response.ok) throw new Error(await response.text());
+
+    const data = await fetch('/api/assets', { cache: 'no-store' }).then((item) => item.json());
+    state.assets = data.assets || [];
+    modelSelect.innerHTML = state.assets.map((asset) => `<option value="${asset}">${asset}</option>`).join('');
+    modelSelect.value = id;
+
+    await loadModel(id);
+    extractStatus.textContent = `готово: ${result.stats.groups} частей, ${Math.round(result.stats.triangles)} тр., ${(result.bin.length / 1024).toFixed(0)} КБ · модель «${id}»`;
+  } catch (err) {
+    extractStatus.textContent = `ошибка: ${err.message}`;
+  } finally {
+    btnExtract.disabled = false;
+  }
+}
+
+partsTree.addEventListener('change', (event) => {
+  const group = event.target.closest('input[data-group]');
+  if (group) {
+    const index = Number(group.dataset.group);
+    if (group.checked) state.hiddenGroups.delete(index);
+    else state.hiddenGroups.add(index);
+    syncModelPartChecks();
+    return;
+  }
+
+  const object = event.target.closest('input[data-object]');
+  if (!object) return;
+
+  const part = state.modelParts[Number(object.dataset.object)];
+  if (!part) return;
+
+  for (const index of part.indices) {
+    if (object.checked) state.hiddenGroups.delete(index);
+    else state.hiddenGroups.add(index);
+  }
+
+  renderModelParts();
+});
+
+btnPartsAll.addEventListener('click', () => {
+  state.hiddenGroups.clear();
+  renderModelParts();
+});
+
+btnPartsNone.addEventListener('click', () => {
+  const groups = state.modelManifest?.groups || [];
+  state.hiddenGroups = new Set(groups.map((_, index) => index));
+  renderModelParts();
+});
+
+btnExtract.addEventListener('click', () => {
+  extractSelected().catch((err) => {
+    extractStatus.textContent = `ошибка: ${err.message}`;
+  });
+});
 
 function collectPhysics() {
   const kind = kindInput.value === 'dynamic' ? 'dynamic' : 'static';

@@ -1,0 +1,1785 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GalaxyDemo — превью редактора сцен</title>
+<style>
+  :root {
+    --bg: #070b12;
+    --panel: #0d141f;
+    --panel-2: #121b29;
+    --panel-3: #0a111b;
+    --line: #1e2a3c;
+    --line-soft: #16202e;
+    --text: #cfd8e3;
+    --muted: #7d8b9c;
+    --dim: #5d6b7c;
+    --accent: #ff8a3d;
+    --accent-dim: #a1562a;
+    --blue: #4fd2ff;
+    --green: #7fbf8f;
+    --danger: #ff5a4d;
+    --radius: 5px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input { font: inherit; }
+  svg { display: block; }
+
+  .app {
+    display: grid;
+    grid-template-rows: 44px minmax(0, 1fr) 28px;
+    height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ------------------------------- Top bar -------------------------------- */
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px 0 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-right: 8px;
+    font-weight: 700;
+    font-size: 11.5px;
+    letter-spacing: 0.16em;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .brand span { color: var(--accent); }
+  .brand em {
+    font-style: normal;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
+  .menu { display: flex; gap: 2px; position: relative; }
+  .menu button {
+    padding: 5px 9px;
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .menu button:hover { background: var(--panel-2); color: var(--text); }
+
+  .doc {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 auto 0 26px;
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--panel-3);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .doc .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+  .doc .scene-id { font-family: Consolas, "Courier New", monospace; color: #e6eef8; }
+  .doc .hint { color: var(--dim); font-size: 11px; }
+
+  .spacer { flex: 1; }
+
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 28px; height: 28px;
+    border-radius: 4px;
+    color: var(--muted);
+  }
+  .icon-btn:hover { background: var(--panel-2); color: var(--text); }
+  .icon-btn.is-off { opacity: 0.35; pointer-events: none; }
+
+  .btn {
+    height: 28px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: #2f425c; }
+  .btn.primary {
+    border-color: var(--accent-dim);
+    background: #2a1a10;
+    color: #ffd9bd;
+  }
+  .btn.primary:hover { border-color: var(--accent); }
+  .btn.play { border-color: #1d3a4d; color: var(--blue); }
+  .btn.play:hover { border-color: var(--blue); }
+
+  .sep { width: 1px; height: 20px; background: var(--line); margin: 0 6px; }
+
+  .doc-actions { position: relative; display: flex; align-items: center; gap: 2px; }
+
+  /* --------------------------------- Body --------------------------------- */
+
+  .body {
+    display: grid;
+    grid-template-columns: 46px 286px minmax(0, 1fr) 326px;
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+  }
+  .rail button {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 34px; height: 34px;
+    border-radius: 6px;
+    color: var(--muted);
+  }
+  .rail button:hover { background: var(--panel-2); color: var(--text); }
+  .rail button.active { background: #24170f; color: var(--accent); }
+  .rail button.active::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 8px; bottom: 8px;
+    width: 2px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+  .rail .rail-gap { flex: 1; }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--panel);
+  }
+  .panel.left { border-right: 1px solid var(--line); }
+  .panel.right { border-left: 1px solid var(--line); }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px 0 12px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 10px;
+    flex: 0 0 auto;
+  }
+  .panel-head .grow { flex: 1; }
+  .panel-head button { color: var(--dim); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; }
+  .panel-head button:hover { background: var(--panel-2); color: var(--text); }
+
+  /* ------------------------------- Hierarchy ------------------------------ */
+
+  .search-row {
+    position: relative;
+    padding: 8px 10px 6px;
+    flex: 0 0 auto;
+  }
+  .search-row input {
+    width: 100%;
+    height: 28px;
+    padding: 0 26px 0 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel-3);
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+  }
+  .search-row input:focus { border-color: #35506e; }
+  .search-row .s-icon { position: absolute; left: 19px; top: 16px; color: var(--dim); }
+  .search-row kbd {
+    position: absolute;
+    right: 17px; top: 14px;
+    font: 10px/1 Consolas, monospace;
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 3px 4px;
+  }
+
+  .chips {
+    display: flex;
+    gap: 4px;
+    padding: 0 10px 8px;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+  }
+  .chip {
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .chip:hover { color: var(--text); border-color: #2f425c; }
+  .chip.on { background: #24170f; border-color: var(--accent-dim); color: #ffd9bd; }
+
+  .tree {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 2px 0 14px;
+  }
+
+  .row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 8px 0 6px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .row:hover { background: #101a27; }
+  .row.sel {
+    background: linear-gradient(90deg, rgba(255,138,61,0.11), rgba(255,138,61,0.02) 70%, transparent);
+    border-left-color: var(--accent);
+  }
+  .row.root { font-weight: 600; border-bottom: 1px solid var(--line-soft); }
+
+  .row .twist {
+    width: 14px; height: 14px;
+    display: grid; place-items: center;
+    color: var(--dim);
+    flex: 0 0 auto;
+    transition: transform 0.12s ease;
+  }
+  .row .twist.closed { transform: rotate(-90deg); }
+  .row .twist.leaf { visibility: hidden; }
+
+  .row .ico { width: 15px; flex: 0 0 auto; color: var(--muted); }
+  .row .name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12.5px;
+  }
+  .row.root .ico { color: var(--accent); }
+  .row.player .ico { color: var(--blue); }
+  .row .kind {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--dim);
+    font-size: 10.5px;
+  }
+  .row .badge {
+    flex: 0 0 auto;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: #17222f;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 9.5px;
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+  }
+  .row .badge.mat { border-color: #1d3a4d; color: var(--blue); }
+  .row .badge.body { border-color: #2c3a22; color: #a9c98a; }
+
+  .row .acts {
+    position: absolute;
+    right: 6px;
+    top: 3px;
+    display: flex;
+    gap: 1px;
+    padding-left: 10px;
+    background: linear-gradient(90deg, rgba(13, 20, 31, 0), rgba(13, 20, 31, 0.96) 30%);
+    opacity: 0;
+  }
+  .row:hover .acts, .row.sel .acts { opacity: 1; }
+  .row .acts button {
+    width: 20px; height: 20px;
+    display: grid; place-items: center;
+    border-radius: 3px;
+    color: var(--dim);
+  }
+  .row .acts button:hover { color: #ffb36b; background: #1a2432; }
+  .row.muted .name, .row.muted .kind, .row.muted .ico { opacity: 0.42; }
+  .row.muted .acts { opacity: 1; }
+  .row.muted .acts .eye { color: var(--accent); opacity: 0.9; }
+
+  .tree-foot {
+    flex: 0 0 auto;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border-top: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .tree-foot .crumb { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+  .tree-foot .crumb b { color: var(--text); font-weight: 500; }
+  .tree-foot .count { margin-left: auto; }
+
+  /* ------------------------------- Viewport ------------------------------- */
+
+  .view {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: #04070d;
+    container-type: inline-size;
+  }
+
+  .space {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(900px 520px at 62% 18%, rgba(38, 76, 122, 0.35), transparent 65%),
+      radial-gradient(600px 400px at 18% 80%, rgba(120, 62, 28, 0.12), transparent 70%),
+      #05080f;
+  }
+  .space::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, #9fc3e8 50%, transparent 51%),
+      radial-gradient(1px 1px at 31% 64%, #7d8b9c 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 47% 14%, #cfe3ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 68% 41%, #8fa8c4 50%, transparent 51%),
+      radial-gradient(1px 1px at 82% 73%, #9fc3e8 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 91% 28%, #cfe3ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 24% 9%, #6f8299 50%, transparent 51%),
+      radial-gradient(1px 1px at 57% 87%, #6f8299 50%, transparent 51%);
+    background-size: 420px 300px, 380px 260px, 520px 340px, 300px 220px, 460px 300px, 380px 280px, 340px 240px, 400px 300px;
+    opacity: 0.75;
+  }
+
+  .floor {
+    position: absolute;
+    left: -20%;
+    right: -20%;
+    bottom: -12%;
+    height: 58%;
+    background-image:
+      repeating-linear-gradient(90deg, rgba(79, 210, 255, 0.13) 0 1px, transparent 1px 64px),
+      repeating-linear-gradient(0deg, rgba(79, 210, 255, 0.13) 0 1px, transparent 1px 64px);
+    transform: perspective(520px) rotateX(68deg);
+    transform-origin: 50% 100%;
+    mask-image: linear-gradient(to top, #000 0%, transparent 78%);
+    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 78%);
+    opacity: 0.55;
+  }
+
+  .planet {
+    position: absolute;
+    right: 12%;
+    top: 12%;
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 34% 30%, #2c4a6b, #14263c 55%, #0a1524 78%);
+    box-shadow: 0 0 60px rgba(79, 210, 255, 0.10), inset -18px -14px 40px rgba(0, 0, 0, 0.65);
+  }
+  .planet::after {
+    content: "";
+    position: absolute;
+    left: -34px; right: -34px;
+    top: 44%;
+    height: 14px;
+    border: 1px solid rgba(79, 210, 255, 0.22);
+    border-radius: 50%;
+    transform: rotate(-16deg);
+  }
+
+  .station {
+    position: absolute;
+    right: 26%;
+    top: 34%;
+    width: 132px; height: 132px;
+    border: 1px solid rgba(160, 190, 220, 0.35);
+    border-radius: 50%;
+    transform: rotateX(64deg);
+    box-shadow: 0 0 24px rgba(79, 210, 255, 0.06);
+  }
+  .station::before, .station::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+  }
+  .station::before { inset: 16px; border: 1px solid rgba(160, 190, 220, 0.2); }
+  .station::after {
+    left: 50%; top: 50%;
+    width: 42px; height: 42px;
+    margin: -21px 0 0 -21px;
+    background: radial-gradient(circle at 40% 35%, #2b3d57, #0d1622);
+    border: 1px solid rgba(160, 190, 220, 0.4);
+    transform: rotateX(-64deg);
+  }
+
+  .ship-wrap {
+    position: absolute;
+    left: 34%;
+    top: 46%;
+    width: 210px;
+    transform: translate(-50%, -50%);
+  }
+  .ship { width: 100%; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.55)); }
+
+  .select-outline {
+    position: absolute;
+    inset: -12px -10px;
+    border: 1px solid rgba(255, 138, 61, 0.85);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  .select-outline i {
+    position: absolute;
+    width: 6px; height: 6px;
+    background: #0a111b;
+    border: 1px solid var(--accent);
+  }
+  .select-outline i:nth-child(1) { left: -3px; top: -3px; }
+  .select-outline i:nth-child(2) { right: -3px; top: -3px; }
+  .select-outline i:nth-child(3) { left: -3px; bottom: -3px; }
+  .select-outline i:nth-child(4) { right: -3px; bottom: -3px; }
+
+  .gizmo { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; transform: translate(-50%, -50%); pointer-events: none; }
+
+  .wave {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 300px; height: 300px;
+    margin: -150px 0 0 -150px;
+    border: 1px solid rgba(79, 210, 255, 0.14);
+    border-radius: 50%;
+    animation: pulse 4s ease-out infinite;
+  }
+  .wave:nth-child(2) { animation-delay: 1.3s; }
+  @keyframes pulse {
+    0% { transform: scale(0.55); opacity: 0.5; }
+    100% { transform: scale(1.15); opacity: 0; }
+  }
+
+  .vp-label {
+    position: absolute;
+    color: rgba(160, 185, 214, 0.55);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .bot-mark {
+    position: absolute;
+    width: 9px; height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border: 1px solid rgba(79, 210, 255, 0.75);
+    background: rgba(79, 210, 255, 0.12);
+    transform: rotate(45deg);
+    box-shadow: 0 0 10px rgba(79, 210, 255, 0.25);
+  }
+
+  /* Floating viewport controls */
+  .vp-tools {
+    position: absolute;
+    left: 12px; top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(10, 17, 27, 0.92);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    z-index: 4;
+  }
+  .tool {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .tool:hover { background: #0e1622; color: var(--text); }
+  .tool.on {
+    background: #2a1a10;
+    color: #ffd9bd;
+    box-shadow: inset 0 0 0 1px var(--accent-dim);
+  }
+  .tool.view.on {
+    background: #0f2230;
+    color: #bfeaff;
+    box-shadow: inset 0 0 0 1px #1d3a4d;
+  }
+  .vp-tools .vsep { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
+  .vp-tools .num {
+    height: 22px;
+    width: 46px;
+    min-width: 46px;
+    padding: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel-3);
+    color: var(--text);
+    font: 11px/1 Consolas, monospace;
+    text-align: center;
+  }
+
+  .vp-cams {
+    position: absolute;
+    right: 12px; top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 320px);
+    z-index: 5;
+  }
+  .vp-cams .chip { background: rgba(10, 17, 27, 0.92); height: 26px; border-radius: 5px; }
+
+  .vp-stats {
+    position: absolute;
+    left: 12px; bottom: 12px;
+    display: grid;
+    gap: 3px;
+    padding: 8px 11px;
+    background: rgba(8, 14, 24, 0.82);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    z-index: 4;
+    backdrop-filter: blur(4px);
+  }
+  .vp-stats b { color: var(--text); font-weight: 500; }
+  .vp-stats .ok { color: var(--green); }
+
+  .vp-hint {
+    position: absolute;
+    right: 12px; bottom: 12px;
+    color: rgba(140, 160, 185, 0.55);
+    font-size: 10.5px;
+    text-align: right;
+    line-height: 1.6;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .vp-hint kbd {
+    font: 9.5px/1 Consolas, monospace;
+    border: 1px solid rgba(140, 160, 185, 0.28);
+    border-radius: 3px;
+    padding: 2px 4px;
+    color: rgba(180, 200, 222, 0.8);
+  }
+
+  .vp-play {
+    position: absolute;
+    left: 50%; bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 4;
+  }
+  .vp-play .btn { background: rgba(10, 17, 27, 0.94); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); }
+
+  /* ------------------------------- Inspector ------------------------------ */
+
+  .insp-head {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--line);
+    flex: 0 0 auto;
+  }
+  .insp-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 6px;
+  }
+  .insp-title .name {
+    font-size: 13.5px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .type-chip {
+    flex: 0 0 auto;
+    height: 17px;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: #17222f;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+  }
+  .insp-title .copy {
+    margin-left: auto;
+    color: var(--dim);
+    font: 10.5px/1 Consolas, monospace;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .insp-title .copy:hover { color: var(--text); }
+
+  .tabs {
+    position: relative;
+    display: flex;
+    gap: 2px;
+  }
+  .tab {
+    position: relative;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 11.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .tab:hover { color: var(--text); background: #101a27; }
+  .tab.on { color: #ffd9bd; background: #24170f; box-shadow: inset 0 0 0 1px #3b2515; }
+  .tab .n {
+    font-size: 9.5px;
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 4px;
+    line-height: 14px;
+  }
+
+  .insp-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px 12px 26px;
+  }
+
+  .sect {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 9px 0 11px;
+  }
+  .sect:last-child { border-bottom: 0; }
+  .sect-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .sect-head .grow { flex: 1; }
+  .sect-head button { color: var(--dim); width: 20px; height: 20px; display: grid; place-items: center; border-radius: 3px; }
+  .sect-head button:hover { background: #101a27; color: var(--text); }
+
+  .fld {
+    display: grid;
+    grid-template-columns: 66px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .fld > span { color: var(--muted); font-size: 11px; }
+  .fld > span i { font-style: normal; color: var(--dim); }
+
+  .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+
+  .num-wrap {
+    display: flex;
+    align-items: center;
+    height: 25px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel-3);
+    overflow: hidden;
+  }
+  .num-wrap:hover { border-color: #2a3c54; }
+  .num-wrap:focus-within { border-color: #35506e; }
+  .num-wrap .ax {
+    flex: 0 0 auto;
+    width: 15px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .ax.x { color: #ff7a6e; }
+  .ax.y { color: #9bd08d; }
+  .ax.z { color: #6fb6ff; }
+  .num-wrap input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: 11.5px/1 Consolas, "Courier New", monospace;
+    padding: 0 4px 0 1px;
+    outline: none;
+  }
+  .num-wrap .scrub {
+    flex: 0 0 auto;
+    width: 9px; height: 100%;
+    border-left: 1px dotted #2a3c54;
+    cursor: ew-resize;
+  }
+
+  .select-line {
+    display: flex;
+    gap: 4px;
+  }
+  .select-line select {
+    flex: 1;
+    height: 25px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel-3);
+    color: var(--text);
+    font-size: 11.5px;
+    outline: none;
+  }
+
+  .check-line {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 2px 0 6px;
+    color: var(--muted);
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .check-line input { accent-color: var(--accent); width: 13px; height: 13px; }
+
+  .collider-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border: 1px dashed #26384f;
+    border-radius: 5px;
+    background: #0a111b;
+  }
+  .collider-box svg { flex: 0 0 auto; }
+  .collider-box .txt { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .collider-box .txt b { color: var(--text); font-weight: 500; }
+
+  .script-line {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 26px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+  }
+  .script-line:hover { background: #101a27; }
+  .script-line .mono { font-family: Consolas, monospace; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .script-line .sw {
+    width: 26px; height: 14px;
+    border-radius: 7px;
+    background: #24303f;
+    position: relative;
+    flex: 0 0 auto;
+  }
+  .script-line .sw::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #7d8b9c;
+  }
+  .script-line .sw.on { background: #2a1a10; box-shadow: inset 0 0 0 1px var(--accent-dim); }
+  .script-line .sw.on::after { left: 14px; background: var(--accent); }
+
+  .add-line {
+    width: 100%;
+    height: 27px;
+    margin-top: 6px;
+    border: 1px dashed #2a3c54;
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+  .add-line:hover { color: #ffd9bd; border-color: var(--accent-dim); background: rgba(255, 138, 61, 0.04); }
+
+  .empty-note {
+    padding: 10px;
+    border: 1px dashed #26384f;
+    border-radius: 5px;
+    color: var(--dim);
+    font-size: 11.5px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .insp-foot {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+    border-top: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 11px;
+  }
+
+  /* ------------------------------- Status bar ----------------------------- */
+
+  .status {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: #93a2b4;
+    white-space: nowrap;
+    overflow: visible;
+  }
+  .status .seg { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .status .seg .k { color: var(--dim); }
+  .status .seg b { font-weight: 500; color: var(--text); }
+  .status .push { margin-left: auto; }
+  .status .status-gap { margin-left: auto; }
+  .status .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .status .link { color: var(--muted); border-bottom: 1px dotted #3a4b60; }
+  .status .link:hover { color: var(--text); }
+
+  /* --------------------------------- Notes -------------------------------- */
+
+  .note-badge {
+    position: absolute;
+    z-index: 60;
+    top: -7px;
+    right: -7px;
+    width: 17px; height: 17px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #1a0d05;
+    font: 700 10px/17px "Segoe UI", sans-serif;
+    text-align: center;
+    box-shadow: 0 0 0 2px #0b1119, 0 2px 6px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+  }
+  .note-badge.tl { right: auto; left: -7px; }
+  .note-badge.bl { top: auto; bottom: -8px; right: auto; left: -7px; }
+  .note-badge.br { top: auto; bottom: -8px; }
+  .note-badge.in { top: 3px; right: 3px; }
+
+  .notes-drawer {
+    position: fixed;
+    top: 44px;
+    right: 0;
+    bottom: 28px;
+    width: 340px;
+    z-index: 80;
+    background: rgba(9, 15, 25, 0.97);
+    border-left: 1px solid var(--accent-dim);
+    box-shadow: -18px 0 40px rgba(0, 0, 0, 0.5);
+    padding: 14px 16px 20px;
+    overflow: auto;
+    transform: translateX(102%);
+    transition: transform 0.22s ease;
+  }
+  .notes-drawer.open { transform: none; }
+
+  /* На широком экране панель пояснений раздвигает интерфейс, а не закрывает инспектор */
+  body.notes-open .app { padding-right: 340px; transition: padding-right 0.22s ease; }
+  @media (max-width: 1520px) {
+    body.notes-open .app { padding-right: 0; }
+  }
+  .notes-drawer h3 {
+    margin: 0 0 2px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .notes-drawer .sub { color: var(--dim); font-size: 11px; margin-bottom: 12px; }
+
+  .drawer-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px; height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1;
+  }
+  .drawer-close:hover { background: var(--panel-2); color: var(--text); }
+  .note-item {
+    display: flex;
+    gap: 10px;
+    padding: 9px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .note-item .n {
+    flex: 0 0 auto;
+    width: 17px; height: 17px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #1a0d05;
+    font: 700 10px/17px "Segoe UI", sans-serif;
+    text-align: center;
+    margin-top: 1px;
+  }
+  .note-item b { display: block; font-size: 12px; color: var(--text); font-weight: 600; margin-bottom: 2px; }
+  .note-item p { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+  .note-item code {
+    font: 10.5px/1.5 Consolas, monospace;
+    color: #a9c4e0;
+    background: #101a27;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0 3px;
+  }
+
+  /* -------------------------------- Palette ------------------------------- */
+
+  .palette-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 6, 11, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 90;
+    display: none;
+  }
+  .palette-backdrop.open { display: block; }
+  .palette {
+    position: absolute;
+    left: 50%; top: 16%;
+    width: min(620px, 86vw);
+    transform: translateX(-50%);
+    background: #0c1420;
+    border: 1px solid #2a3c54;
+    border-radius: 8px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65);
+    overflow: hidden;
+  }
+  .palette input {
+    width: 100%;
+    height: 46px;
+    padding: 0 15px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: #0a111b;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+  }
+  .palette .list { padding: 6px; max-height: 320px; overflow: auto; }
+  .palette .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .palette .item:hover, .palette .item.on { background: #16222f; }
+  .palette .item .k {
+    margin-left: auto;
+    font: 10px/1 Consolas, monospace;
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 3px 5px;
+  }
+  .palette .item .ico { color: var(--muted); }
+
+  /* ------------------------------ Responsive ------------------------------ */
+
+  @media (max-width: 1600px) {
+    .vp-cams { max-width: calc(100% - 270px); }
+  }
+
+  /* Узкий вьюпорт (в т.ч. когда открыта панель пояснений) — тулбар сжимается до иконок */
+  @container (max-width: 900px) {
+    .vp-tools .lbl { display: none; }
+    .vp-tools .tool { padding: 0 8px; }
+    .vp-cams { max-width: calc(100% - 330px); }
+  }
+  @container (max-width: 640px) {
+    .vp-cams {
+      flex-direction: column;
+      align-items: stretch;
+      max-width: 108px;
+    }
+    .vp-cams .chip { text-align: center; }
+    .vp-play .btn { padding: 0 9px; font-size: 11px; }
+  }
+
+  @container (max-width: 420px) {
+    .vp-cams { display: none; }
+  }
+
+  @media (max-width: 1280px) {
+    .body { grid-template-columns: 44px 254px minmax(0, 1fr) 300px; }
+    .doc .hint { display: none; }
+    .menu button { padding: 5px 6px; }
+  }
+  @media (max-width: 1120px) {
+    .body { grid-template-columns: 44px 228px minmax(0, 1fr) 272px; }
+  }
+  /* Компактный режим: рейка и служебные подписи убираются, инспектор складывает поля */
+  @media (max-width: 1100px) {
+    .rail { display: none; }
+    .body { grid-template-columns: 230px minmax(0, 1fr) 268px; }
+    .row .kind { display: none; }
+    .fld { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+    .fld > span { font-size: 10px; }
+    .status .seg.stats { display: none; }
+  }
+  @media (max-width: 1080px) {
+    .body { grid-template-columns: 216px minmax(0, 1fr) 258px; }
+    .brand em { display: none; }
+    .vp-hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ================================ Top bar ============================== -->
+  <header class="topbar">
+    <div class="brand">GALAXY <span>EDITOR</span> <em>UI PREVIEW</em></div>
+
+    <nav class="menu" data-note="1">
+      <button>Файл</button>
+      <button>Правка</button>
+      <button>Объект</button>
+      <button>Сцена</button>
+      <button>Вид</button>
+    </nav>
+
+    <div class="doc">
+      <span class="dot" title="Есть несохранённые изменения"></span>
+      <span class="scene-id">bots-demo</span>
+      <span class="hint">черновик · автосохранение 12:41</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="doc-actions" data-note="2">
+      <button class="icon-btn" title="Отменить (Ctrl+Z)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+      </button>
+      <button class="icon-btn is-off" title="Повторить (Ctrl+Shift+Z)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg>
+      </button>
+    </div>
+
+    <span class="sep"></span>
+
+    <button class="btn primary" title="Ctrl+S">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      Сохранить
+    </button>
+
+    <a class="btn play" href="/?scene=bots-demo" target="_blank" rel="noopener" title="Запустить текущую сцену">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3l15 9-15 9z"/></svg>
+      Играть
+    </a>
+  </header>
+
+  <!-- ================================= Body ================================= -->
+  <div class="body">
+
+    <!-- Rail -->
+    <nav class="rail">
+      <button class="active" title="Сцена и иерархия">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+      </button>
+      <button title="Ассеты и префабы">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+      </button>
+      <button title="Модели">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 22V12"/></svg>
+      </button>
+      <button title="Материалы и эффекты">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/></svg>
+      </button>
+      <div class="rail-gap"></div>
+      <button title="Горячие клавиши (?)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-.9.7-1.5 1.2-1.5 2.5"/><path d="M12 17h.01"/></svg>
+      </button>
+      <button title="Настройки">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </button>
+    </nav>
+
+    <!-- Hierarchy -->
+    <aside class="panel left">
+      <div class="panel-head">
+        <span>Сцена</span>
+        <span class="grow"></span>
+        <button title="Свернуть всё" id="collapseAll">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
+        </button>
+        <button title="Добавить объект" id="addObj">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <div class="search-row" data-note="3" data-note-pos="tl">
+        <svg class="s-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="treeSearch" type="text" placeholder="Найти объект, скрипт, материал…" autocomplete="off">
+        <kbd>Ctrl+F</kbd>
+      </div>
+
+      <div class="chips">
+        <button class="chip on">Все</button>
+        <button class="chip">Модели</button>
+        <button class="chip">Скрипты</button>
+        <button class="chip">HUD</button>
+        <button class="chip">Скрытые</button>
+      </div>
+
+      <div class="tree" id="tree">
+        <!-- scene -->
+        <div class="row root sel" data-id="scene" data-name="scene" data-type="scene">
+          <button class="twist"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg></span>
+          <span class="name">bots-demo</span>
+          <span class="kind">scene</span>
+          <span class="acts"><button title="Свойства сцены"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></span>
+        </div>
+
+        <!-- station 1 -->
+        <div class="row" style="padding-left:20px" data-id="orbital-station-1" data-name="orbital-station-1" data-type="model">
+          <button class="twist closed"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 22V12"/></svg></span>
+          <span class="name">orbital-station-1</span>
+          <span class="kind">model</span>
+          <span class="acts">
+            <button class="eye" title="Скрыть"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button title="Закрепить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+          </span>
+        </div>
+
+        <!-- station 2 -->
+        <div class="row" style="padding-left:20px" data-id="orbital-station-2" data-name="orbital-station-2" data-type="model">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 22V12"/></svg></span>
+          <span class="name">orbital-station-2</span>
+          <span class="kind">model</span>
+          <span class="acts">
+            <button class="eye" title="Скрыть"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button title="Закрепить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+          </span>
+        </div>
+
+        <!-- trigger -->
+        <div class="row" style="padding-left:20px" data-id="trigger-1" data-name="trigger-1" data-type="trigger">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+          <span class="name">trigger-1</span>
+          <span class="kind">trigger</span>
+          <span class="acts">
+            <button class="eye" title="Скрыть"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </span>
+        </div>
+
+        <!-- player -->
+        <div class="row player" style="padding-left:20px" data-id="player-ship-1" data-name="player-ship-1" data-type="empty">
+          <button class="twist" data-toggle><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 2 4 7 7 4-7 4-4 7-4-7-7-4 7-4 4-7Z"/></svg></span>
+          <span class="name">player-ship-1</span>
+          <span class="kind">empty</span>
+          <span class="badge body">dynamic</span>
+          <span class="acts">
+            <button class="eye" title="Скрыть"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button title="Закрепить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+          </span>
+        </div>
+
+        <div class="row" style="padding-left:44px" data-id="gun-left-1" data-name="gun-left-1" data-type="empty">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="6"/><path d="M12 6v6l4 2"/></svg></span>
+          <span class="name">gun-left-1</span>
+          <span class="kind">empty</span>
+        </div>
+        <div class="row" style="padding-left:44px" data-id="gun-right-1" data-name="gun-right-1" data-type="empty">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="6"/><path d="M12 6v6l4 2"/></svg></span>
+          <span class="name">gun-right-1</span>
+          <span class="kind">empty</span>
+        </div>
+        <div class="row" style="padding-left:44px" data-id="camera-1" data-name="camera-1" data-type="camera">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 8 12-4v16L3 16V8Z"/><path d="m15 10 6-3v10l-6-3"/></svg></span>
+          <span class="name">camera-1</span>
+          <span class="kind">camera</span>
+          <span class="badge">active</span>
+        </div>
+        <div class="row" style="padding-left:44px" data-id="corinth-cargo-transported-1" data-name="corinth-cargo-transported-1" data-type="model">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 22V12"/></svg></span>
+          <span class="name">corinth-cargo-transported-1</span>
+          <span class="kind">model</span>
+          <span class="acts">
+            <button class="eye" title="Скрыть"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </span>
+        </div>
+        <div class="row" style="padding-left:44px" data-id="corinth-shield" data-name="corinth-cargo-transported-shield-1" data-type="model">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v6c0 4.5-3.2 7.9-8 9-4.8-1.1-8-4.5-8-9V6l8-3Z"/></svg></span>
+          <span class="name">corinth-cargo-transported-shield-1</span>
+          <span class="kind">model</span>
+          <span class="badge mat">shield</span>
+        </div>
+        <div class="row" style="padding-left:44px" data-id="empty-1" data-name="empty-1" data-type="empty">
+          <button class="twist closed"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/></svg></span>
+          <span class="name">empty-1</span>
+          <span class="kind">empty</span>
+          <span class="badge">4 HUD</span>
+        </div>
+
+        <!-- bots -->
+        <div class="row" style="padding-left:20px" data-id="bot-1" data-name="bot-1" data-type="empty">
+          <button class="twist closed"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01M9 17h6"/></svg></span>
+          <span class="name">bot-1</span>
+          <span class="kind">empty</span>
+          <span class="badge">2 скрипта</span>
+        </div>
+        <div class="row muted" style="padding-left:20px" data-id="bot-2" data-name="bot-2" data-type="empty" data-note="4" data-note-pos="in">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01M9 17h6"/></svg></span>
+          <span class="name">bot-2</span>
+          <span class="kind">empty</span>
+          <span class="acts"><button class="eye" title="Показать"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A16.6 16.6 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.2-.5"/></svg></button></span>
+        </div>
+        <div class="row" style="padding-left:20px" data-id="bot-3" data-name="bot-3" data-type="empty">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01M9 17h6"/></svg></span>
+          <span class="name">bot-3</span>
+          <span class="kind">empty</span>
+        </div>
+        <div class="row" style="padding-left:20px" data-id="bot-4" data-name="bot-4" data-type="empty">
+          <button class="twist leaf"></button>
+          <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01M9 17h6"/></svg></span>
+          <span class="name">bot-4</span>
+          <span class="kind">empty</span>
+        </div>
+      </div>
+
+      <div class="tree-foot">
+        <span class="crumb" id="crumb"><b>scene</b> / player-ship-1</span>
+        <span class="count">24 объекта</span>
+      </div>
+    </aside>
+
+    <!-- Viewport -->
+    <main class="view">
+      <div class="space"></div>
+      <div class="floor"></div>
+      <div class="planet"></div>
+      <div class="station"></div>
+      <div class="wave"></div>
+      <div class="wave"></div>
+
+      <span class="vp-label" style="left:60%;top:36%">orbital-station-1</span>
+      <span class="vp-label" style="left:50%;top:30%">bot-1</span>
+      <span class="vp-label" style="left:29%;top:58%;color:rgba(255,138,61,.75)">player-ship-1</span>
+      <span class="bot-mark" style="left:52.5%;top:32.5%"></span>
+
+      <div class="ship-wrap">
+        <svg class="ship" viewBox="0 0 210 130" fill="none">
+          <defs>
+            <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3b5578"/>
+              <stop offset="0.55" stop-color="#22344c"/>
+              <stop offset="1" stop-color="#101a28"/>
+            </linearGradient>
+            <linearGradient id="wing" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#2a3d56"/>
+              <stop offset="1" stop-color="#16222f"/>
+            </linearGradient>
+          </defs>
+          <path d="M105 6 126 42l62 30-62 22-21 26-21-26-62-22 62-30L105 6Z" fill="url(#wing)" stroke="#5d8bb8" stroke-opacity="0.5" stroke-width="1.2"/>
+          <path d="M105 12l14 32v52l-14 18-14-18V44l14-32Z" fill="url(#hull)" stroke="#7fb3dd" stroke-opacity="0.75" stroke-width="1.2"/>
+          <path d="M105 24v66" stroke="#8fd8ff" stroke-opacity="0.35" stroke-width="1"/>
+          <path d="M57 74l-22 10 22 6M153 74l22 10-22 6" stroke="#4fd2ff" stroke-opacity="0.35" stroke-width="1.4"/>
+          <circle cx="91" cy="60" r="4" fill="#ff8a3d" fill-opacity="0.85"/>
+          <circle cx="119" cy="60" r="4" fill="#ff8a3d" fill-opacity="0.85"/>
+          <circle cx="105" cy="94" r="3" fill="#4fd2ff" fill-opacity="0.8"/>
+          <path d="M80 92l-8 12M130 92l8 12" stroke="#ff8a3d" stroke-opacity="0.6" stroke-width="1.5"/>
+        </svg>
+        <div class="select-outline"><i></i><i></i><i></i><i></i></div>
+        <svg class="gizmo" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="30" fill="none" stroke="#ff8a3d" stroke-opacity="0.35" stroke-width="1"/>
+          <path d="M60 60 L60 14" stroke="#9bd08d" stroke-width="2"/>
+          <path d="M60 14l-5 9h10z" fill="#9bd08d"/>
+          <path d="M60 60 L104 82" stroke="#ff7a6e" stroke-width="2"/>
+          <path d="M104 82l-9-1 4-9z" fill="#ff7a6e"/>
+          <path d="M60 60 L16 82" stroke="#6fb6ff" stroke-width="2"/>
+          <path d="M16 82l9-1-4-9z" fill="#6fb6ff"/>
+          <circle cx="60" cy="60" r="4" fill="#0a111b" stroke="#ff8a3d" stroke-width="2"/>
+        </svg>
+      </div>
+
+      <div class="vp-tools" data-note="5" data-note-pos="bl">
+        <button class="tool on" data-tool title="Перемещение (G)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><path d="m12 3 3 3M12 3 9 6M12 21l3-3M12 21l-3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>
+          <span class="lbl">Двигать</span>
+        </button>
+        <button class="tool" data-tool title="Вращение (R)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 8a8 8 0 1 0 2 6"/><path d="M22 4v5h-5"/></svg>
+          <span class="lbl">Вращать</span>
+        </button>
+        <button class="tool" data-tool title="Масштаб (S)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="9" height="9"/><path d="M13 13h7v7h-7zM13 4h7v7"/></svg>
+          <span class="lbl">Масштаб</span>
+        </button>
+        <span class="vsep"></span>
+        <button class="tool view on" title="Локальные / мировые оси">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg>
+          <span class="lbl">Мир</span>
+        </button>
+        <button class="tool" title="Привязка к шагу">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4M4 3h4M16 3h4"/></svg>
+          <span class="lbl">Снап</span>
+        </button>
+        <input class="num" value="0.5" title="Шаг привязки">
+        <span class="vsep"></span>
+        <button class="tool view on" title="Показать сетку">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+          <span class="lbl">Сетка</span>
+        </button>
+        <button class="tool view on" title="Показать коллайдеры">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8" stroke-dasharray="3 2"/><circle cx="12" cy="12" r="3"/></svg>
+          <span class="lbl">Коллайдеры</span>
+        </button>
+      </div>
+
+      <div class="vp-cams" data-note="6">
+        <button class="chip on">Перспектива</button>
+        <button class="chip">Сверху</button>
+        <button class="chip">Спереди</button>
+        <button class="chip" title="Кадрировать выделенное (F)">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          F
+        </button>
+      </div>
+
+      <div class="vp-stats">
+        <div><b>24</b> объекта · <b>42 118</b> тр.</div>
+        <div><span class="ok">60 fps</span> · 12 draw calls · 18.4 МБ</div>
+      </div>
+
+      <div class="vp-hint">
+        <div><kbd>G</kbd> <kbd>R</kbd> <kbd>S</kbd> — гизмо · <kbd>F</kbd> — фокус · <kbd>Ctrl+D</kbd> — дубль</div>
+        <div>ЛКМ — выбор · ПКМ — облёт · колесо — зум</div>
+      </div>
+
+      <div class="vp-play">
+        <a class="btn play" href="/?scene=bots-demo" target="_blank" rel="noopener">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3l15 9-15 9z"/></svg>
+          Играть с этой точки
+        </a>
+      </div>
+    </main>
+
+    <!-- Inspector -->
+    <aside class="panel right">
+      <div class="insp-head">
+        <div class="insp-title">
+          <span class="name" id="selName">player-ship-1</span>
+          <span class="type-chip" id="selType">empty</span>
+          <button class="copy" title="Скопировать id">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            id
+          </button>
+        </div>
+        <div class="tabs" data-note="7">
+          <button class="tab on" data-tab="obj">Объект</button>
+          <button class="tab" data-tab="scripts">Скрипты <span class="n" id="scriptCount">4</span></button>
+          <button class="tab" data-tab="mat">Материал</button>
+        </div>
+      </div>
+
+      <div class="insp-body">
+        <!-- Object tab -->
+        <div data-pane="obj">
+          <section class="sect">
+            <div class="sect-head">
+              <span>Трансформ</span>
+              <span class="grow"></span>
+              <button title="Сбросить трансформ">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v6h6"/><path d="M4.5 15a8 8 0 1 0 2-9"/></svg>
+              </button>
+            </div>
+
+            <div class="fld">
+              <span>Позиция <i>м</i></span>
+              <div class="trio">
+                <label class="num-wrap"><span class="ax x">X</span><input value="0.00"><span class="scrub"></span></label>
+                <label class="num-wrap"><span class="ax y">Y</span><input value="1.80"><span class="scrub"></span></label>
+                <label class="num-wrap"><span class="ax z">Z</span><input value="0.00"><span class="scrub"></span></label>
+              </div>
+            </div>
+
+            <div class="fld">
+              <span>Поворот <i>°</i></span>
+              <div class="trio">
+                <label class="num-wrap"><span class="ax x">X</span><input value="0.0"><span class="scrub"></span></label>
+                <label class="num-wrap"><span class="ax y">Y</span><input value="182.4"><span class="scrub"></span></label>
+                <label class="num-wrap"><span class="ax z">Z</span><input value="0.0"><span class="scrub"></span></label>
+              </div>
+            </div>
+
+            <div class="fld">
+              <span>Масштаб</span>
+              <div class="trio">
+                <label class="num-wrap"><span class="ax x">X</span><input value="1.00"><span class="scrub"></span></label>
+                <label class="num-wrap"><span class="ax y">Y</span><input value="1.00"><span class="scrub"></span></label>
+                <label class="num-wrap"><span class="ax z">Z</span><input value="1.00"><span class="scrub"></span></label>
+              </div>
+            </div>
+
+            <label class="check-line"><input type="checkbox" checked> Активен</label>
+          </section>
+
+          <section class="sect">
+            <div class="sect-head">
+              <span>Иерархия</span>
+            </div>
+            <div class="fld">
+              <span>Родитель</span>
+              <div class="select-line">
+                <select><option>scene</option></select>
+              </div>
+            </div>
+            <div class="fld">
+              <span>Префаб</span>
+              <div class="select-line">
+                <select><option>— не задан —</option><option>player.json</option><option>bot.json</option></select>
+                <button class="btn" style="height:25px" title="Открыть префаб">↗</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="sect">
+            <div class="sect-head">
+              <span>Физика</span>
+              <span class="grow"></span>
+              <button title="Открыть редактор коллайдера">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-8 8"/><path d="M10 20H4v-6M4 20l8-8"/></svg>
+              </button>
+            </div>
+            <div class="fld">
+              <span>Тип тела</span>
+              <div class="select-line"><select><option>dynamic</option><option>static</option></select></div>
+            </div>
+            <div class="fld">
+              <span>Масса <i>кг</i></span>
+              <div class="num-wrap"><input value="12.0"><span class="scrub"></span></div>
+            </div>
+            <div class="fld">
+              <span>Трение</span>
+              <div class="num-wrap"><input value="0.18"><span class="scrub"></span></div>
+            </div>
+            <label class="check-line"><input type="checkbox" checked> Блокировать вращение</label>
+
+            <div class="collider-box">
+              <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+                <circle cx="21" cy="10" r="5" stroke="#4fd2ff" stroke-opacity="0.7" stroke-dasharray="2 2"/>
+                <circle cx="21" cy="21" r="6.5" stroke="#4fd2ff" stroke-opacity="0.9" stroke-dasharray="2 2"/>
+                <circle cx="21" cy="32" r="4.5" stroke="#4fd2ff" stroke-opacity="0.7" stroke-dasharray="2 2"/>
+                <path d="M21 10v22" stroke="#ff8a3d" stroke-opacity="0.5"/>
+              </svg>
+              <div class="txt">Составной коллайдер<br><b>3 сферы</b> · радиус 1.2 м</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Scripts tab -->
+        <div data-pane="scripts" hidden>
+          <section class="sect">
+            <div class="sect-head"><span>Скрипты · 4</span></div>
+            <div class="script-line">
+              <span class="sw on"></span><span class="mono">input.js</span>
+              <button style="color:#5d6b7c" title="Открыть код">↗</button>
+            </div>
+            <div class="script-line">
+              <span class="sw on"></span><span class="mono">movement.js</span>
+              <button style="color:#5d6b7c" title="Открыть код">↗</button>
+            </div>
+            <div class="script-line">
+              <span class="sw on"></span><span class="mono">rotation.js</span>
+              <button style="color:#5d6b7c" title="Открыть код">↗</button>
+            </div>
+            <div class="script-line">
+              <span class="sw on"></span><span class="mono">weapons.js</span>
+              <button style="color:#5d6b7c" title="Открыть код">↗</button>
+            </div>
+            <button class="add-line">+ Добавить скрипт</button>
+          </section>
+          <section class="sect">
+            <div class="sect-head"><span>Порядок выполнения</span></div>
+            <p style="margin:0;color:#5d6b7c;font-size:11px;line-height:1.6">
+              Скрипты выполняются сверху вниз. Перетащите строку, чтобы изменить порядок.
+            </p>
+          </section>
+        </div>
+
+        <!-- Material tab -->
+        <div data-pane="mat" hidden>
+          <section class="sect">
+            <div class="sect-head"><span>Материал</span></div>
+            <div class="empty-note">
+              У объекта нет материала.<br>
+              Материал задаётся моделям и эффектам сцены.
+            </div>
+            <button class="add-line">Выбрать материал…</button>
+          </section>
+        </div>
+      </div>
+
+      <div class="insp-foot">
+        <span>Пробел — вкл/выкл · Del — удалить</span>
+        <span style="margin-left:auto;color:#5d6b7c">Ctrl+C / Ctrl+V</span>
+      </div>
+    </aside>
+  </div>
+
+  <!-- =============================== Status bar ============================ -->
+  <footer class="status">
+    <span class="seg" data-note="8"><span class="dot"></span><b>Сохранено</b> <span class="k">bots-demo.scene.json · 12:41:08</span></span>
+    <span class="seg" style="color:#2a3c54">|</span>
+    <span class="seg"><span class="k">Выбрано:</span> <b id="statusSel">player-ship-1</b></span>
+    <span class="seg status-gap"></span>
+    <span class="seg stats"><span class="k">Объектов:</span> 24</span>
+    <span class="seg stats"><span class="k">Треугольников:</span> 42 118</span>
+    <span class="seg stats"><span class="k">FPS:</span> 60</span>
+    <button class="link" id="toggleNotes">Пояснения (?)</button>
+  </footer>
+</div>
+
+<!-- =============================== Notes drawer ============================ -->
+<aside class="notes-drawer" id="notesDrawer">
+  <button class="drawer-close" id="notesClose" title="Закрыть (Esc)">×</button>
+  <h3>Что изменено</h3>
+  <div class="sub">Наведите на метку в интерфейсе — она соответствует пункту списка.</div>
+
+  <div class="note-item"><span class="n">1</span><div><b>Меню вместо 24 кнопок</b><p>Верхняя панель разгружена: Файл, Правка, Объект, Сцена, Вид. Редкие операции (импорт GLB, префабы, модели) уезжают в меню и на левую рейку.</p></div></div>
+  <div class="note-item"><span class="n">2</span><div><b>Undo / Redo</b><p>История действий с <code>Ctrl+Z</code> / <code>Ctrl+Shift+Z</code>. Сейчас откат есть только на уровне файла через <code>.bak</code>, правки в редакторе необратимы.</p></div></div>
+  <div class="note-item"><span class="n">3</span><div><b>Поиск и фильтры</b><p>Поиск по имени, типу, скрипту и материалу плюс чипы «Модели / Скрипты / HUD / Скрытые». В сцене на 24 объекта дерево уже требует навигации.</p></div></div>
+  <div class="note-item"><span class="n">4</span><div><b>Видимость и замок в строке</b><p>Иконки глаза и замка появляются при наведении, состояние скрытых объектов приглушается. Плюс хлебные крошки и счётчик объектов в подвале панели.</p></div></div>
+  <div class="note-item"><span class="n">5</span><div><b>Контекстный тулбар во вьюпорте</b><p>Гизмо, локальные оси, снап и переключатели сетки/коллайдеров — рядом с объектом, а не в шапке. В шапке остаются только файловые действия.</p></div></div>
+  <div class="note-item"><span class="n">6</span><div><b>Пресеты камеры и фокус</b><p>Перспектива / Сверху / Спереди и кнопка кадрирования <code>F</code>. Сейчас камера управляется только мышью, вернуться к объекту нельзя.</p></div></div>
+  <div class="note-item"><span class="n">7</span><div><b>Инспектор с вкладками</b><p>Объект / Скрипты / Материал вместо одной длинной прокрутки. Числовые поля тянутся курсором (scrub), у секций есть сброс.</p></div></div>
+  <div class="note-item"><span class="n">8</span><div><b>Статус и автосохранение</b><p>Состояние сохранения с временем, путь до выделенного объекта, статистика сцены и FPS — в одной строке. Чекбокс «авто» больше не спорит за место в шапке.</p></div></div>
+</aside>
+
+<!-- ================================= Palette ============================== -->
+<div class="palette-backdrop" id="paletteBackdrop">
+  <div class="palette">
+    <input id="paletteInput" placeholder="Команда или объект…" autocomplete="off">
+    <div class="list">
+      <div class="item"><span class="ico">＋</span> Добавить модель <span class="k">M</span></div>
+      <div class="item"><span class="ico">＋</span> Добавить пустой объект <span class="k">E</span></div>
+      <div class="item"><span class="ico">＋</span> Добавить камеру</div>
+      <div class="item"><span class="ico">◎</span> Сфокусировать выделенное <span class="k">F</span></div>
+      <div class="item"><span class="ico">⇄</span> Дублировать <span class="k">Ctrl+D</span></div>
+      <div class="item"><span class="ico">⌫</span> Удалить <span class="k">Del</span></div>
+      <div class="item"><span class="ico">▣</span> Сохранить сцену <span class="k">Ctrl+S</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Tabs -----------------------------------------------------------------
+  const panes = document.querySelectorAll('[data-pane]');
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t === tab));
+      panes.forEach((pane) => { pane.hidden = pane.dataset.pane !== tab.dataset.tab; });
+    });
+  });
+
+  // --- Tree selection -------------------------------------------------------
+  const rows = [...document.querySelectorAll('.row')];
+  const selName = document.getElementById('selName');
+  const selType = document.getElementById('selType');
+  const crumb = document.getElementById('crumb');
+  const statusSel = document.getElementById('statusSel');
+
+  rows.forEach((row) => {
+    row.addEventListener('click', (event) => {
+      if (event.target.closest('[data-toggle]')) {
+        row.querySelector('.twist')?.classList.toggle('closed');
+        return;
+      }
+      if (event.target.closest('.eye')) {
+        row.classList.toggle('muted');
+        return;
+      }
+      rows.forEach((r) => r.classList.remove('sel'));
+      row.classList.add('sel');
+      const name = row.dataset.name;
+      selName.textContent = name;
+      selType.textContent = row.dataset.type;
+      statusSel.textContent = name;
+      crumb.innerHTML = '<b>scene</b> / ' + name;
+    });
+  });
+
+  // --- Search ---------------------------------------------------------------
+  document.getElementById('treeSearch').addEventListener('input', (event) => {
+    const query = event.target.value.trim().toLowerCase();
+    rows.forEach((row) => {
+      if (!query) { row.style.display = ''; return; }
+      row.style.display = row.dataset.name.toLowerCase().includes(query) ? '' : 'none';
+    });
+  });
+
+  // --- Viewport tools -------------------------------------------------------
+  document.querySelectorAll('.vp-tools .tool[data-tool]').forEach((tool) => {
+    tool.addEventListener('click', () => {
+      document.querySelectorAll('.vp-tools .tool[data-tool]').forEach((t) => t.classList.toggle('on', t === tool));
+    });
+  });
+
+  // --- Notes ----------------------------------------------------------------
+  const drawer = document.getElementById('notesDrawer');
+  const toggleNotes = document.getElementById('toggleNotes');
+  let notesOn = false;
+
+  function renderBadges() {
+    document.querySelectorAll('.note-badge').forEach((badge) => badge.remove());
+    if (!notesOn) return;
+    document.querySelectorAll('[data-note]').forEach((target) => {
+      const badge = document.createElement('i');
+      badge.className = 'note-badge';
+      if (target.dataset.notePos) badge.classList.add(target.dataset.notePos);
+      badge.textContent = target.dataset.note;
+      target.appendChild(badge);
+    });
+  }
+
+  function setNotes(next) {
+    notesOn = next;
+    drawer.classList.toggle('open', notesOn);
+    document.body.classList.toggle('notes-open', notesOn);
+    toggleNotes.style.color = notesOn ? '#ffb36b' : '';
+    renderBadges();
+  }
+
+  toggleNotes.addEventListener('click', () => setNotes(!notesOn));
+  document.getElementById('notesClose').addEventListener('click', () => setNotes(false));
+
+  // --- Command palette ------------------------------------------------------
+  const backdrop = document.getElementById('paletteBackdrop');
+  const paletteInput = document.getElementById('paletteInput');
+
+  function setPalette(open) {
+    backdrop.classList.toggle('open', open);
+    if (open) { paletteInput.value = ''; paletteInput.focus(); }
+  }
+
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) setPalette(false);
+  });
+
+  // --- Keyboard -------------------------------------------------------------
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { setPalette(false); setNotes(false); return; }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      setPalette(!backdrop.classList.contains('open'));
+      return;
+    }
+
+    if (event.key === '?' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+      event.preventDefault();
+      setNotes(!notesOn);
+    }
+  });
+
+  // Стартовое состояние: подсказки выключены, дерево показывает выбранный объект.
+  // Для скриншота можно открыть с ?notes=1 — сразу с пояснениями.
+  if (new URLSearchParams(location.search).get('notes') === '1') setNotes(true);
+</script>
+</body>
+</html>

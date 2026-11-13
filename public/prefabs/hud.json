@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "id": "hud",
+  "title": "HUD",
+  "entities": [
+    {
+      "id": "empty-2",
+      "type": "empty",
+      "name": "HUD",
+      "position": [
+        -1.845,
+        27.08,
+        -120.665
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "children": [
+        {
+          "id": "hud-menu",
+          "name": "Меню",
+          "type": "hud",
+          "position": [
+            51.845,
+            22.92,
+            120.665
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "hud": {
+            "file": "hud/menu.html",
+            "follow": "none",
+            "anchor": "center",
+            "startHidden": true
+          }
+        },
+        {
+          "id": "hud-mining",
+          "type": "hud",
+          "name": "Добыча",
+          "position": [
+            51.845,
+            -7.08,
+            120.665
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "hud": {
+            "file": "hud/mining.html",
+            "follow": "none",
+            "anchor": "center",
+            "startHidden": false
+          }
+        },
+        {
+          "id": "hud-2",
+          "type": "hud",
+          "name": "Оружие",
+          "position": [
+            51.845,
+            -17.08,
+            120.665
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "hud": {
+            "file": "hud/weapons.html",
+            "bind": null
+          }
+        },
+        {
+          "id": "hud-1",
+          "type": "hud",
+          "name": "Управление",
+          "position": [
+            51.845,
+            -17.08,
+            120.665
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "hud": {
+            "file": "hud/keys.html",
+            "follow": "none",
+            "offset": [
+              0,
+              0
+            ],
+            "anchor": "top-left",
+            "scale": 1,
+            "bind": null
+          },
+          "visible": true
+        }
+      ]
+    }
+  ]
+}

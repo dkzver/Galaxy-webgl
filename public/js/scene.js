@@ -20,6 +20,7 @@
 
 import { quatFromAxisAngle, quatMul, quatNormalize } from './math.js';
 import { normalizeProjectile } from './prefabs.js';
+import { normalizeReticleConfig } from './reticles.js';
 
 export const SCENE_VERSION = 1;
 /** Тип корневого объекта сцены: он один, его нельзя удалить. */
@@ -346,8 +347,22 @@ function normalizeEntity(raw, path, taken, nested = false) {
     })(),
     visible: raw.visible !== false,
     tags: Array.isArray(raw.tags) ? raw.tags.slice() : [],
+    // Скрытые части модели: список имён объектов/групп (модульный корабль)
+    hiddenParts: Array.isArray(raw.hiddenParts)
+      ? raw.hiddenParts.filter((value) => typeof value === 'string' && value).slice(0, 64)
+      : [],
+    // Материал из public/materials: рисует оболочку щита и т.п.
+    materialId: typeof raw.materialId === 'string' && /^[a-z0-9][a-z0-9-]*$/i.test(raw.materialId)
+      ? raw.materialId
+      : null,
     // Снаряд из префаба: баллистика хранится в данных, а не в коде оружия
     projectile: normalizeProjectile(raw.projectile),
+    // Прицел: вариант, размер и цвета — данные сущности, не код движка
+    reticle: type === 'reticle' ? normalizeReticleConfig(raw.reticle) : null,
+    // Взаимодействие с мышью: наведение и клик по модели
+    mouse: type === 'model' && raw.mouse && typeof raw.mouse === 'object'
+      ? { hover: Boolean(raw.mouse.hover), click: Boolean(raw.mouse.click) }
+      : null,
     scripts: normalizeScripts(raw.scripts, path),
     partScripts: raw.partScripts && typeof raw.partScripts === 'object' ? { ...raw.partScripts } : {},
     body: normalizeBody(raw.body, path),
@@ -519,6 +534,20 @@ export function normalizeScene(raw) {
   walk(entities);
 
   const player = rawRoot?.player || raw.player || sceneSettings.player || {};
+
+  // Скрипт сцены — обязательная точка входа; его params задают настройки кадра
+  const sceneScripts = normalizeScripts(rawRoot?.scripts, 'scene');
+  const sceneParams = sceneScripts[0]?.params || {};
+
+  const backgroundValue = sceneParams.background
+    ?? rawRoot?.background ?? sceneSettings.background ?? raw.background;
+  const hudStyleValue = sceneParams.hudStyle
+    ?? rawRoot?.hud?.style ?? sceneSettings.hudStyle ?? raw.hudStyle;
+  const loadingValue = sceneParams.loadingFile || sceneParams.loadingScript
+    ? { file: sceneParams.loadingFile, script: sceneParams.loadingScript }
+    : (rawRoot?.loading ?? sceneSettings.loading ?? raw.loading);
+  const cursorId = sceneParams.cursor ?? rawRoot?.cursor ?? raw.cursor ?? sceneSettings.cursor ?? null;
+  const cursor = typeof cursorId === 'string' && cursorId ? cursorId : null;
   const spawnId = player.spawn || null;
   const spawnEntity = spawnId ? spawns.find((item) => item.id === spawnId) : null;
 
@@ -532,14 +561,16 @@ export function normalizeScene(raw) {
     version,
     id: raw.id,
     title: raw.title || raw.id,
-    background: hexToText(rawRoot?.background ?? sceneSettings.background ?? raw.background, '#000000'),
+    background: hexToText(backgroundValue, '#000000'),
     scene: {
       id: rawRoot?.id || 'scene',
       type: SCENE_ROOT_TYPE,
       name: rawRoot?.name || 'Сцена',
-      background: hexToText(rawRoot?.background ?? sceneSettings.background ?? raw.background, '#000000'),
-      hudStyle: normalizeHudStyle(rawRoot?.hud?.style ?? sceneSettings.hudStyle ?? raw.hudStyle),
-      loading: normalizeLoading(rawRoot?.loading ?? sceneSettings.loading ?? raw.loading),
+      background: hexToText(backgroundValue, '#000000'),
+      hudStyle: normalizeHudStyle(hudStyleValue),
+      loading: normalizeLoading(loadingValue),
+      cursor,
+      scripts: sceneScripts,
       player: {
         model: player.model || 'corinth',
         spawn: spawnEntity ? spawnId : null,
@@ -553,6 +584,8 @@ export function normalizeScene(raw) {
       position: toVec3(player.position),
       rotation: Array.isArray(player.rotation) ? player.rotation.slice(0, 3).map((v) => toNumber(v, 0)) : [0, 0, 0]
     },
+    cursor,
+    scripts: sceneScripts,
     entities,
     spawns
   };
@@ -560,9 +593,9 @@ export function normalizeScene(raw) {
 
 /** Все сущности плоским списком: удобно для поиска, скриптов и редактора. */
 export function flattenEntities(entities, out = []) {
-  for (const entity of entities) {
+  for (const entity of entities || []) {
     out.push(entity);
-    flattenEntities(entity.children, out);
+    flattenEntities(entity.children || [], out);
   }
   return out;
 }
@@ -579,6 +612,210 @@ export function reassignIds(entities, nextId) {
 
 export function findEntity(entities, id) {
   return flattenEntities(entities).find((entity) => entity.id === id) || null;
+}
+
+/**
+ * Переписать ссылки на сущности после перенумерации id (вставка префаба).
+ * Ссылки живут в параметрах скриптов и в hud.target.
+ * @param {object[]} entities
+ * @param {Map<string,string>} idMap старый id → новый id
+ */
+export function remapEntityReferences(entities, idMap) {
+  if (!(idMap instanceof Map) || !idMap.size) return entities;
+
+  const remap = (value) => (typeof value === 'string' && idMap.has(value) ? idMap.get(value) : value);
+
+  const visit = (raw) => {
+    for (const script of raw.scripts || []) {
+      if (!script || typeof script !== 'object' || !script.params) continue;
+
+      for (const [key, value] of Object.entries(script.params)) {
+        const next = remap(value);
+        if (next !== value) script.params[key] = next;
+      }
+    }
+
+    if (raw.hud && typeof raw.hud.target === 'string') {
+      raw.hud.target = remap(raw.hud.target);
+    }
+
+    // Точка появления бота — тоже ссылка на сущность
+    if (raw.bot && typeof raw.bot.spawn === 'string') {
+      raw.bot.spawn = remap(raw.bot.spawn);
+    }
+    if (typeof raw.spawnId === 'string') {
+      raw.spawnId = remap(raw.spawnId);
+    }
+
+    for (const child of raw.children || []) visit(child);
+  };
+
+  for (const raw of entities) visit(raw);
+  return entities;
+}
+
+/** Снять суффикс копии: «gun-left-2» → «gun-left». */
+function idBase(id) {
+  return String(id || 'node').replace(/-\d+$/, '') || 'node';
+}
+
+/** Свободный id в принятой в редакторе форме: <base>-1, <base>-2, … */
+function nextFreeId(base, taken) {
+  let index = 1;
+  let id = `${base}-${index}`;
+
+  while (taken.has(id)) {
+    index += 1;
+    id = `${base}-${index}`;
+  }
+
+  taken.add(id);
+  return id;
+}
+
+/**
+ * Обновить инстанс префаба данными из файла.
+ *
+ * Возвращает новые корни: содержимое берётся из префаба, а id узлов
+ * переиспользуются по позиции в дереве. Поэтому ссылки остальной сцены на
+ * инстанс (параметры скриптов, hud.target, точка появления) остаются рабочими,
+ * а новые узлы получают свободные id. Место установки корня (position) тоже
+ * остаётся сценным: префаб обновляет содержимое, а не место установки — иначе
+ * объект прыгал бы к камере при каждом обновлении. Поворот и масштаб берутся
+ * из сцены только при совпадении типа корня: у застаревшего инстанса (корень
+ * был моделью, а в префабе стал группой с той же моделью внутри) масштаб
+ * применился бы дважды — к группе и к мешу.
+ *
+ * @param {object[]} existing текущие корни инстанса на сцене
+ * @param {object[]} incoming свежие корни из файла префаба (не мутируются)
+ * @param {{taken?: Set<string>|string[]}} [options] занятые id документа
+ * @returns {{entities: object[], kept: number, added: number, removed: number, idMap: Map<string,string>}}
+ */
+export function refreshPrefabRoots(existing, incoming, options = {}) {
+  const taken = new Set(options.taken || []);
+  const entities = JSON.parse(JSON.stringify(Array.isArray(incoming) ? incoming : []));
+  const previous = new Map();
+
+  const index = (list, prefix) => {
+    (list || []).forEach((raw, position) => {
+      if (!raw || typeof raw !== 'object') return;
+      const path = prefix ? `${prefix}.${position}` : String(position);
+      previous.set(path, raw);
+      index(raw.children, path);
+    });
+  };
+  index(existing, '');
+
+  const idMap = new Map();
+  const fresh = new Set();
+  let kept = 0;
+  let added = 0;
+
+  const walk = (list, prefix) => {
+    list.forEach((raw, position) => {
+      const path = prefix ? `${prefix}.${position}` : String(position);
+      fresh.add(path);
+
+      const old = previous.get(path) || null;
+      const original = typeof raw.id === 'string' && raw.id ? raw.id : null;
+      let id = old && old.id ? String(old.id) : null;
+
+      if (id) {
+        kept += 1;
+      } else {
+        id = nextFreeId(idBase(original), taken);
+        added += 1;
+      }
+
+      taken.add(id);
+      raw.id = id;
+      if (original && original !== id) idMap.set(original, id);
+
+      // Корень стоит там, куда его поставили на сцене
+      if (!prefix && old) {
+        if (Array.isArray(old.position)) raw.position = old.position.slice();
+
+        const sameKind = String(old.type || '') === String(raw.type || '');
+        if (sameKind) {
+          if (Array.isArray(old.rotation)) raw.rotation = old.rotation.slice();
+          if (old.scale != null) raw.scale = old.scale;
+        }
+      }
+
+      if (Array.isArray(raw.children)) walk(raw.children, path);
+    });
+  };
+  walk(entities, '');
+
+  // Ссылки внутри префаба указывают на исходные id — переводим их на выданные
+  remapEntityReferences(entities, idMap);
+
+  let removed = 0;
+  for (const path of previous.keys()) {
+    if (!fresh.has(path)) removed += 1;
+  }
+
+  return { entities, kept, added, removed, idMap };
+}
+
+/**
+ * Починить ссылки в сохраняемом префабе.
+ *
+ * Внутри ветки ссылки остаются целыми — при вставке они перенумеруются.
+ * Ссылки на объекты вне ветки и на несуществующие id очищаются: иначе
+ * префаб будет хранить адрес, который в другой сцене ничего не значит.
+ *
+ * @param {object[]} entities корни префаба (мутируются)
+ * @param {object} [options]
+ * @param {Set<string>|string[]} [options.sceneIds] все id документа
+ * @param {(file:string, key:string)=>boolean} [options.isEntityParam] схема скрипта
+ * @returns {Array<{where:string, value:string, reason:string}>}
+ */
+export function sanitizePrefabReferences(entities, options = {}) {
+  const internal = new Set(flattenEntities(entities).map((entity) => entity.id));
+  const sceneIds = options.sceneIds instanceof Set ? options.sceneIds : new Set(options.sceneIds || []);
+  const isEntityParam = typeof options.isEntityParam === 'function' ? options.isEntityParam : () => false;
+  const cleared = [];
+
+  const reasonFor = (value) => (sceneIds.has(value) ? 'вне префаба' : 'не найдено');
+
+  const visit = (raw) => {
+    for (const script of raw.scripts || []) {
+      if (!script || typeof script !== 'object' || !script.params) continue;
+      const file = String(script.file || '');
+
+      for (const [key, value] of Object.entries(script.params)) {
+        if (typeof value !== 'string' || !value) continue;
+        if (internal.has(value)) continue;
+
+        // Ссылка — либо параметр с типом entity, либо строка, совпадающая с id объекта
+        if (!isEntityParam(file, key) && !sceneIds.has(value)) continue;
+
+        cleared.push({ where: `${raw.id}.${key}`, value, reason: reasonFor(value) });
+        script.params[key] = '';
+      }
+    }
+
+    if (raw.hud && typeof raw.hud.target === 'string' && raw.hud.target && !internal.has(raw.hud.target)) {
+      cleared.push({ where: `${raw.id}.hud.target`, value: raw.hud.target, reason: reasonFor(raw.hud.target) });
+      raw.hud.target = null;
+    }
+
+    if (raw.bot && typeof raw.bot.spawn === 'string' && raw.bot.spawn && !internal.has(raw.bot.spawn)) {
+      cleared.push({ where: `${raw.id}.bot.spawn`, value: raw.bot.spawn, reason: reasonFor(raw.bot.spawn) });
+      raw.bot.spawn = null;
+    }
+
+    if (typeof raw.spawnId === 'string' && raw.spawnId && !internal.has(raw.spawnId)) {
+      cleared.push({ where: `${raw.id}.spawnId`, value: raw.spawnId, reason: reasonFor(raw.spawnId) });
+      delete raw.spawnId;
+    }
+
+    for (const child of raw.children || []) visit(child);
+  };
+
+  for (const raw of entities) visit(raw);
+  return cleared;
 }
 
 export function findSpawn(entities, id) {

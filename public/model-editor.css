@@ -2,19 +2,44 @@
 
 [hidden] { display: none !important; }
 
+/* Окно редактора модели: страница прокручивается, шапка закреплена */
 .model-editor {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #2b3d55 transparent;
+}
+
+.model-editor::-webkit-scrollbar { width: 10px; }
+.model-editor::-webkit-scrollbar-thumb { background: #2b3d55; border-radius: 5px; }
+.model-editor::-webkit-scrollbar-track { background: transparent; }
+
+.model-editor > .bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex: none;
 }
 
 .model-body {
   display: grid;
   grid-template-columns: minmax(320px, 1fr) minmax(240px, 300px) minmax(300px, 380px);
+  grid-template-areas:
+    "preview summary physics"
+    "preview parts physics";
   gap: 16px;
   padding: 16px;
   align-items: start;
 }
+
+.preview-card { grid-area: preview; }
+.summary-card { grid-area: summary; }
+.parts-card { grid-area: parts; }
+.physics-card { grid-area: physics; }
 
 .card {
   background: var(--panel);
@@ -264,11 +289,92 @@
 .field b { color: #cfe3ff; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 1100px) {
-  .model-body { grid-template-columns: 1fr 1fr; }
-  .preview-card { grid-column: 1 / -1; }
+  .model-body {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "preview preview"
+      "summary parts"
+      "physics physics";
+  }
+  .preview-card { grid-column: auto; }
 }
 
 @media (max-width: 760px) {
-  .model-body { grid-template-columns: 1fr; }
+  .model-body {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "preview"
+      "summary"
+      "parts"
+      "physics";
+  }
   .preview-card { grid-column: auto; }
+  .physics-card { max-height: none; }
 }
+
+/* Части модели: дерево объектов и групп */
+.parts-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.parts-object {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.parts-object:hover { background: rgba(255, 255, 255, 0.05); }
+.parts-object input { margin: 0; accent-color: var(--accent); }
+.parts-object span { flex: 1; font-weight: 600; }
+.parts-object em { font-style: normal; font-size: 11px; color: var(--muted); }
+
+.parts-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 18px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.parts-group:hover { background: rgba(255, 255, 255, 0.04); }
+.parts-group input { margin: 0; accent-color: var(--blue); }
+.parts-group span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.parts-group em { font-style: normal; }
+
+.parts-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.parts-actions button {
+  padding: 3px 9px;
+  border: 1px solid #2b3d53;
+  border-radius: 5px;
+  background: #142234;
+  color: #cfe3ff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.parts-actions button.primary { border-color: #ff8a3d; color: #ffb36b; }
+.parts-total { margin-left: auto; font-size: 11px; color: var(--muted); }
+.parts-status { margin: 0; font-size: 11.5px; color: var(--muted); }
+.toggle-row { display: flex; align-items: center; gap: 7px; }
+.toggle-row input { accent-color: var(--accent); }

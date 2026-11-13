@@ -38,6 +38,37 @@
       <p class="hint-inline">Габариты берутся из манифеста модели (<b>public/models/&lt;id&gt;.json</b>). Меняются только пересборкой ассета, здесь — справочно. 1 единица = 1 м; в скобках — сантиметры.</p>
     </section>
 
+    <section class="card parts-card">
+      <h4>Части модели</h4>
+      <p class="hint-inline">Модель — это набор объектов, как в Blender. Галочка показывает часть в предпросмотре и включает её в извлечение.</p>
+
+      <div class="parts-actions">
+        <button id="btn-parts-all" type="button">Все</button>
+        <button id="btn-parts-none" type="button">Ничего</button>
+        <span id="parts-total" class="parts-total">—</span>
+      </div>
+
+      <div id="parts-tree" class="parts-tree" role="listbox" aria-multiselectable="true"></div>
+
+      <div class="field">
+        <span>id новой модели</span>
+        <input id="extract-id" type="text" placeholder="corinth-engine" autocomplete="off">
+      </div>
+
+      <label class="field toggle-row">
+        <input id="extract-center" type="checkbox" checked>
+        <span>центрировать в ноль</span>
+      </label>
+
+      <div class="parts-actions">
+        <button id="btn-extract" type="button" class="primary">Извлечь в модель</button>
+      </div>
+
+      <p id="extract-status" class="parts-status">—</p>
+
+      <p class="hint-inline">Извлечённые части становятся отдельными ассетами: их можно ставить в сцену и прикреплять к кораблю дочерними объектами — так заменяют оборудование.</p>
+    </section>
+
     <section class="card physics-card">
       <h4>Физика по умолчанию</h4>
 

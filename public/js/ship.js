@@ -242,11 +242,13 @@ export async function loadAsteroids(gl) {
 async function loadTextureSet(gl, name, maps = ['base', 'rough', 'metal']) {
   const hasRough = maps.includes('rough');
   const hasMetal = maps.includes('metal');
+  const hasEmissive = maps.includes('emissive');
 
-  const [albedo, rough, metal] = await Promise.all([
+  const [albedo, rough, metal, emissive] = await Promise.all([
     loadTexture(gl, `textures/${name}/base.png`),
     hasRough ? loadTexture(gl, `textures/${name}/rough.png`) : null,
-    hasMetal ? loadTexture(gl, `textures/${name}/metal.png`) : null
+    hasMetal ? loadTexture(gl, `textures/${name}/metal.png`) : null,
+    hasEmissive ? loadTexture(gl, `textures/${name}/emissive.png`) : null
   ]);
   if (!albedo) return null;
 
@@ -255,7 +257,9 @@ async function loadTextureSet(gl, name, maps = ['base', 'rough', 'metal']) {
   return {
     albedo,
     rough: rough || solidTexture(gl, 255, 255, 255),
-    metal: metal || solidTexture(gl, 0, 0, 0)
+    metal: metal || solidTexture(gl, 0, 0, 0),
+    // null — эмиссивной карты у набора нет: glow светится целиком
+    emissive: emissive || null
   };
 }
 

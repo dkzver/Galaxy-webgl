@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "id": "bot-1",
+  "title": "Бот 1",
+  "entities": [
+    {
+      "id": "bot-1",
+      "type": "empty",
+      "name": "Бот 1",
+      "position": [
+        45,
+        8,
+        -70
+      ],
+      "rotation": [
+        0,
+        20,
+        0
+      ],
+      "scale": 1,
+      "tags": [
+        "bot"
+      ],
+      "scripts": [
+        {
+          "file": "bots/aim-attack.js",
+          "params": {
+            "range": 240,
+            "fireInterval": 2.4
+          }
+        }
+      ],
+      "children": [
+        {
+          "id": "bot-1-mesh",
+          "type": "model",
+          "name": "spaceship",
+          "asset": "spaceship",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "body": {
+            "kind": "static",
+            "mass": 0,
+            "restitution": 0.55,
+            "friction": 0.2,
+            "collider": {
+              "shape": "sphere",
+              "radius": 4.5
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

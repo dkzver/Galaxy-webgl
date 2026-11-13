@@ -15,6 +15,7 @@ function makeInstance(projectile = {}) {
   return {
     root: { position: [0, 0, 0], quaternion: [0, 0, 0, 1], visible: false, raw: { visible: false } },
     entities: [],
+    prefab: 'rocket',
     projectile: {
       speed: 100,
       life: 5,
@@ -228,4 +229,53 @@ test('пустой пул даёт отказ, а не снаряд', () => {
   assert.equal(system.fire({ from: [0, 0, 0], direction: [0, 0, -1] }), null);
   assert.equal(system.stats().rejected, 1);
   assert.equal(free.length, 0);
+});
+
+test('попадание отдаётся событием onHit для скриптов', () => {
+  const world = new PhysicsWorld({ gravity: [0, 0, 0] });
+  const targetEntity = { id: 'shield', visible: true };
+  const target = world.addBody({
+    mass: 10,
+    position: [0, 0, -30],
+    shape: sphereShape(2),
+    userData: { entity: targetEntity }
+  });
+
+  const { pool } = makePool(1);
+  const events = [];
+  const system = createProjectileSystem({
+    physics: world,
+    effects: null,
+    entities: [],
+    pool,
+    onHit: (event) => events.push(event)
+  });
+
+  const instance = system.fire({ from: [0, 0, 0], direction: [0, 0, -1], speed: 100 });
+  for (let frame = 0; frame < 120 && !instance.dead; frame++) system.update(1 / 60);
+
+  assert.equal(events.length, 1, 'событие должно быть ровно одно');
+  assert.equal(events[0].entity, targetEntity);
+  assert.equal(events[0].body, target);
+  assert.equal(events[0].projectile, 'rocket');
+  assert.ok(events[0].point[2] < -27, 'точка попадания близко к цели');
+});
+
+test('промах не присылает событие onHit', () => {
+  const world = new PhysicsWorld({ gravity: [0, 0, 0] });
+  const { pool } = makePool(1);
+  const events = [];
+  const system = createProjectileSystem({
+    physics: world,
+    effects: null,
+    entities: [],
+    pool,
+    onHit: (event) => events.push(event)
+  });
+
+  const instance = system.fire({ from: [0, 0, 0], direction: [0, 1, 0], speed: 40, life: 0.4 });
+  for (let frame = 0; frame < 120 && !instance.dead; frame++) system.update(1 / 60);
+
+  assert.equal(instance.dead, true);
+  assert.equal(events.length, 0);
 });

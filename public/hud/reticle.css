@@ -1,0 +1,162 @@
+/* ---------------------------------------------------------------------------
+   Прицел: общие правила отображения.
+
+   Дизайн приходит из public/hud/reticles/*.svg (или рисуется на canvas
+   скриптом). Движок интерпретирует только роли data-role и переменные --wr-*,
+   поэтому новые прицелы не требуют правок CSS движка.
+
+   Роли:
+     outer / mid / scan / core — вращение и «дыхание»
+     progress-group / progress — кольцо очереди и перезарядки
+--------------------------------------------------------------------------- */
+
+.weapon-reticle,
+.reticle-preview {
+  --reticle-size: 34px;
+  --reticle-color: #68daff;
+  --reticle-aim-color: #ffc857;
+  --reticle-hit-color: #6dffa8;
+  --reticle-reload-color: #ff8a3d;
+  width: var(--reticle-size);
+  height: var(--reticle-size);
+  color: var(--reticle-color);
+  filter: drop-shadow(0 0 4px rgba(60, 180, 255, 0.5)) drop-shadow(0 0 18px rgba(30, 110, 255, 0.2));
+  transition: color 0.16s ease, opacity 0.16s ease;
+}
+
+.weapon-reticle {
+  position: fixed;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  will-change: left, top;
+}
+
+.weapon-reticle.visible { opacity: 0.97; }
+
+.weapon-reticle__stage {
+  width: 100%;
+  height: 100%;
+}
+
+.weapon-reticle svg,
+.reticle-preview svg,
+.weapon-reticle canvas,
+.reticle-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* --- роли слоёв --------------------------------------------------------- */
+
+:is(.weapon-reticle, .reticle-preview) [data-role] {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+}
+
+:is(.weapon-reticle, .reticle-preview) [data-role="outer"] {
+  animation: reticle-spin var(--wr-spin, 16s) linear infinite;
+}
+
+:is(.weapon-reticle, .reticle-preview) [data-role="mid"] {
+  animation: reticle-spin-reverse var(--wr-counter, 11s) linear infinite;
+}
+
+:is(.weapon-reticle, .reticle-preview) [data-role="scan"] {
+  animation: reticle-spin var(--wr-scan, 4.2s) linear infinite;
+}
+
+:is(.weapon-reticle, .reticle-preview) [data-role="core"] {
+  animation: reticle-breathe var(--wr-breathe, 2.6s) ease-in-out infinite;
+}
+
+/* --- кольцо прогресса ---------------------------------------------------- */
+
+:is(.weapon-reticle, .reticle-preview) [data-role="progress-group"] {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+:is(.weapon-reticle, .reticle-preview) [data-role="progress"] {
+  stroke: var(--reticle-reload-color);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+:is(.weapon-reticle, .reticle-preview).reloading [data-role="progress-group"],
+:is(.weapon-reticle, .reticle-preview).bursting [data-role="progress-group"],
+:is(.weapon-reticle, .reticle-preview).reloading [data-role="progress"],
+:is(.weapon-reticle, .reticle-preview).bursting [data-role="progress"] {
+  opacity: 1;
+}
+
+/* Очередь показываем цветом прицела, перезарядку — своим цветом */
+:is(.weapon-reticle, .reticle-preview).bursting [data-role="progress"] { stroke: currentColor; }
+
+:is(.weapon-reticle, .reticle-preview).reloading [data-role="progress"] {
+  animation: reticle-reload-pulse 1.1s ease-in-out infinite;
+}
+
+:is(.weapon-reticle, .reticle-preview).can-hit [data-role="progress"] {
+  stroke: var(--reticle-hit-color);
+}
+
+/* --- состояния ----------------------------------------------------------- */
+
+:is(.weapon-reticle, .reticle-preview).aimed { color: var(--reticle-aim-color); }
+
+:is(.weapon-reticle, .reticle-preview).can-hit { color: var(--reticle-hit-color); }
+
+:is(.weapon-reticle, .reticle-preview).fire [data-role="core"] {
+  animation: reticle-hit 0.42s ease-out;
+}
+
+body.paused .weapon-reticle { opacity: 0; }
+
+body.orbiting .weapon-reticle { opacity: 0.35; }
+
+/* --- анимации ------------------------------------------------------------ */
+
+@keyframes reticle-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes reticle-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes reticle-breathe {
+  0%, 100% { opacity: 0.72; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes reticle-hit {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+@keyframes reticle-reload-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.weapon-reticle, .reticle-preview) [data-role] { animation: none; }
+}
+
+/* Виджет у курсора мыши: та же система, другой якорь */
+.weapon-reticle--cursor { z-index: 7; }
+
+body.cursor-widget #reticle { opacity: 0; }
+
+/* Старое перекрестие мыши заменено виджетом курсора и системным указателем:
+   без виджета показываем системный курсор, с виджетом — сам виджет */
+body #reticle { opacity: 0; }

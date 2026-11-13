@@ -10,11 +10,16 @@
 import { M4, quatConjugate, quatFromAxisAngle, quatFromMat4, quatMul, quatNormalize } from '../math.js';
 import { createProgram } from '../gl.js';
 import { meshVS, meshFS } from '../render/mesh-shader.js';
-import { normalizeScene, eulerToQuat, quatToEuler, reassignIds } from '../scene.js';
+import { normalizeScene, eulerToQuat, quatToEuler, reassignIds, remapEntityReferences, sanitizePrefabReferences, refreshPrefabRoots } from '../scene.js';
 import { buildScene, updateMatrices, updateScene } from '../scene-runtime.js';
 import { EffectSystem } from '../effects.js';
 import { bytesToBase64, packAsset, parseGlb } from '../glb.js';
 import { pushLine, pushWireBoxCorners, pushWireSphere } from '../wire.js';
+import { listObjects, partHidden } from '../model-split.js';
+import { shieldVS, shieldFS } from '../render/shield-shader.js';
+import { normalizeMaterial } from '../materials.js';
+import { RETICLE_DEFAULTS } from '../reticles.js';
+import { createReticleView } from '../reticle-view.js';
 
 /* --------------------------------- DOM ----------------------------------- */
 
@@ -54,6 +59,11 @@ const prefabDialogSelect = document.getElementById('prefab-dialog-select');
 const btnPrefabDialogInsert = document.getElementById('prefab-dialog-insert');
 const btnPrefabDialogCancel = document.getElementById('prefab-dialog-cancel');
 const btnPrefabDialogClose = document.getElementById('prefab-dialog-close');
+
+const modelsDialog = document.getElementById('models-dialog');
+const modelsTable = document.getElementById('models-table');
+const btnModelsDialogClose = document.getElementById('models-dialog-close');
+const btnModelsDialogDone = document.getElementById('models-dialog-done');
 const gizmoRadios = [...document.querySelectorAll('input[name="gizmo"]')];
 const btnDuplicate = document.getElementById('btn-duplicate');
 const btnDelete = document.getElementById('btn-delete');
@@ -80,6 +90,20 @@ const meshLoc = {
     uv: gl.getAttribLocation(meshProgram.program, 'aUv')
   }
 };
+
+const shieldProgram = createProgram(gl, shieldVS, shieldFS);
+const shieldLoc = {
+  u: shieldProgram.uniforms,
+  a: {
+    position: gl.getAttribLocation(shieldProgram.program, 'aPosition'),
+    normal: gl.getAttribLocation(shieldProgram.program, 'aNormal')
+  }
+};
+
+function materialFor(entity) {
+  const id = entity?.raw?.materialId;
+  return id ? state.materials.find((material) => material.id === id) || null : null;
+}
 
 const lineVS = `
 attribute vec3 aPos;
@@ -121,9 +145,12 @@ const state = {
   scripts: [],
   effects: [],
   prefabs: [],
+  models: [],
   hudFiles: [],
   hudCache: new Map(),
   scriptSchemas: {},
+  modelParts: {},
+  materials: [],
   selectedId: null,
   gizmo: 'move',
   fileMtime: null,
@@ -354,17 +381,23 @@ function openSceneDoc() {
   const list = Array.isArray(state.doc?.entities) ? state.doc.entities : [];
   const root = list.find((entity) => entity && entity.type === 'scene') || null;
 
+  const scripts = Array.isArray(root?.scripts) ? JSON.parse(JSON.stringify(root.scripts)) : [];
+
   state.sceneRoot = {
     id: (root && root.id) || 'scene',
     name: (root && root.name) || 'Сцена',
+    scripts,
     background: (root && root.background) || state.doc.background || '#000000',
     hudStyle: (root && root.hud && root.hud.style) || '',
     loading: {
       file: (root && root.loading && root.loading.file) || 'hud/loading.html',
       script: (root && root.loading && root.loading.script) || 'scripts/loading.js'
     },
+    cursor: (root && root.cursor) || null,
     player: { ...(state.doc.player || {}), ...((root && root.player) || {}) }
   };
+
+  syncSceneSettingsFromScript();
 
   // Все объекты сцены — дети корня; редактор работает с ними как с верхним уровнем
   state.doc.entities = root ? (Array.isArray(root.children) ? root.children : []) : list;
@@ -504,11 +537,12 @@ const TYPE_ICON = {
   spawn: '⌖',
   bot: '✦',
   camera: '◉',
-  effect: '✧'
+  effect: '✧',
+  reticle: '◎'
 };
 
 // Подписи типов в дереве: служебные типы читаются по-русски
-const TYPE_LABEL = { empty: 'группа', camera: 'камера', effect: 'эффект' };
+const TYPE_LABEL = { empty: 'группа', camera: 'камера', effect: 'эффект', reticle: 'прицел' };
 
 let draggedId = null;
 
@@ -829,6 +863,29 @@ function entityChoices(current) {
   return options;
 }
 
+/** Ссылка на прицел: в списке только сущности типа reticle. */
+function reticleChoices(current) {
+  const options = [['', '— по умолчанию —']];
+  const seen = new Set();
+
+  const walk = (list, depth) => {
+    for (const raw of list || []) {
+      if (raw.type === 'reticle') {
+        options.push([raw.id, `${'· '.repeat(depth)}${raw.name || raw.id}`]);
+        seen.add(raw.id);
+      }
+      walk(raw.children, depth + 1);
+    }
+  };
+
+  walk(state.doc?.entities, 0);
+
+  // Ссылка могла остаться на удалённый прицел — показываем, что его нет
+  if (current && !seen.has(current)) options.push([current, `${current} · нет в сцене`]);
+
+  return options;
+}
+
 function round(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.round(value * 1000) / 1000;
@@ -841,23 +898,74 @@ function asArray3(value, fallback = [0, 0, 0]) {
 }
 
 /** Инспектор корневого объекта «Сцена»: общие настройки и стили HUD. */
+/** Настройки движка из params скрипта сцены (первый скрипт). */
+function syncSceneSettingsFromScript() {
+  const list = state.sceneRoot?.scripts || [];
+  const first = list.map((item) => (typeof item === 'string' ? { file: item, params: {} } : item))[0];
+  const params = first?.params || {};
+
+  state.sceneRoot.background = params.background || '#000000';
+  state.sceneRoot.hudStyle = params.hudStyle || '';
+  state.sceneRoot.loading = {
+    file: params.loadingFile || '',
+    script: params.loadingScript || ''
+  };
+  state.sceneRoot.cursor = params.cursor || null;
+}
+
+function sceneScriptField(index, key, meta, value) {
+  const attrs = `data-scene-script-index="${index}" data-scene-key="${key}"`;
+  const label = escapeHtml(meta.label || key);
+
+  if (meta.type === 'color') {
+    return `<div class="row"><span>${label}</span><input type="color" ${attrs} value="${value}"></div>`;
+  }
+
+  if (meta.type === 'reticle') {
+    const options = reticleChoices(value)
+      .map(([option, text]) => `<option value="${option}"${option === value ? ' selected' : ''}>${text}</option>`)
+      .join('');
+
+    return `<div class="row"><span>${label}</span><select ${attrs}>${options}</select></div>`
+      + `<div class="reticle-preview-slot" data-preview-reticle="${escapeHtml(value || '')}" data-preview-empty="Курсор не выбран — системный указатель."></div>`;
+  }
+
+  if (meta.type === 'text') {
+    return `<div class="row"><span>${label}</span><input type="text" ${attrs} value="${escapeHtml(value)}"></div>`;
+  }
+
+  return `<div class="row"><span>${label}</span><input type="number" ${attrs} value="${round(Number(value) || 0)}"></div>`;
+}
+
 function renderSceneInspector() {
   const root = state.sceneRoot || {};
   const player = root.player || {};
   const model = player.model || 'corinth';
+  const scripts = Array.isArray(root.scripts) ? root.scripts : [];
+
+  const blocks = scripts.map((script, index) => {
+    const item = typeof script === 'string' ? { file: script, params: {} } : script;
+    const file = item.file || '';
+    const schema = state.scriptSchemas[file] || {};
+    const fields = Object.entries(schema)
+      .map(([key, meta]) => sceneScriptField(index, key, meta, item.params?.[key] ?? meta.default ?? ''))
+      .join('');
+
+    return `<div class="row script-row"><span>${escapeHtml(file)}</span><button type="button" class="icon-btn" data-scene-script-remove="${index}" title="Убрать скрипт">×</button></div>${fields}`;
+  }).join('');
+
+  const scriptOptions = (state.scripts || [])
+    .map((file) => `<option value="${file}">${file}</option>`)
+    .join('');
 
   inspectorEl.innerHTML = `
     <div class="row"><span>id</span><input type="text" value="${escapeHtml(root.id || 'scene')}" disabled></div>
     <div class="row"><span>имя</span><input type="text" id="scene-name" value="${escapeHtml(root.name || 'Сцена')}"></div>
     <div class="row"><span>тип</span><input type="text" value="scene · корень сцены" disabled></div>
-    <h4>Фон и HUD</h4>
-    <div class="row"><span>фон кадра</span><input type="color" id="scene-bg" value="${root.background || '#000000'}"></div>
-    <div class="row"><span>стили HUD</span><input type="text" id="scene-style" placeholder="hud/style.css" value="${escapeHtml(root.hudStyle || '')}"></div>
-    <p class="hint-inline">Один CSS-файл на все HTML-слои HUD сцены. Путь от <b>public/</b>, например <b>hud/style.css</b>. Подключается один раз при загрузке сцены.</p>
-    <h4>Загрузочный экран</h4>
-    <div class="row"><span>html</span><input type="text" id="scene-loading-file" placeholder="hud/loading.html" value="${escapeHtml(root.loading?.file || '')}"></div>
-    <div class="row"><span>скрипт</span><input type="text" id="scene-loading-script" placeholder="scripts/loading.js" value="${escapeHtml(root.loading?.script || '')}"></div>
-    <p class="hint-inline">Скрипт загрузочного экрана получает прогресс (<b>api.loading.getProgress()</b>) и время (<b>api.loading.getElapsed()</b>); цикл init/update — как у основного скрипта сцены.</p>
+    <h4>Скрипт сцены</h4>
+    ${blocks || '<p class="hint-inline">Без скрипта сцены игра не запустится: нужен first-screen.js или свой.</p>'}
+    <div class="row"><span>добавить</span><select id="scene-script-pick">${scriptOptions}</select></div>
+    <button type="button" class="wide" data-scene-script-add>Добавить скрипт сцены</button>
     <h4>Игрок</h4>
     <div class="row"><span>модель</span><select id="scene-model">
       <option value="corinth"${model === 'corinth' ? ' selected' : ''}>Corinth Cargo Transporter</option>
@@ -872,32 +980,6 @@ function renderSceneInspector() {
     renderTree();
   });
 
-  const bg = document.getElementById('scene-bg');
-  bg?.addEventListener('input', () => {
-    state.sceneRoot.background = bg.value;
-    markDirty();
-    rebuild().catch((err) => setStatus(err.message, true));
-  });
-
-  const style = document.getElementById('scene-style');
-  style?.addEventListener('change', () => {
-    state.sceneRoot.hudStyle = style.value.trim();
-    renderHudPreview().catch(() => {});
-    markDirty();
-  });
-
-  const loadingFile = document.getElementById('scene-loading-file');
-  loadingFile?.addEventListener('change', () => {
-    state.sceneRoot.loading = { ...(state.sceneRoot.loading || {}), file: loadingFile.value.trim() };
-    markDirty();
-  });
-
-  const loadingScript = document.getElementById('scene-loading-script');
-  loadingScript?.addEventListener('change', () => {
-    state.sceneRoot.loading = { ...(state.sceneRoot.loading || {}), script: loadingScript.value.trim() };
-    markDirty();
-  });
-
   const modelSelect = document.getElementById('scene-model');
   modelSelect?.addEventListener('change', () => {
     state.sceneRoot.player = { ...(state.sceneRoot.player || {}), model: modelSelect.value };
@@ -906,9 +988,63 @@ function renderSceneInspector() {
   });
 }
 
+function onSceneScriptField(event) {
+  if (state.selectedId !== SCENE_ID) return;
+
+  const field = event.target.closest('[data-scene-script-index]');
+  if (!field) return;
+
+  const index = Number(field.dataset.sceneScriptIndex);
+  const key = field.dataset.sceneKey;
+  const scripts = state.sceneRoot.scripts || [];
+  if (typeof scripts[index] === 'string') scripts[index] = { file: scripts[index], params: {} };
+
+  const script = scripts[index];
+  if (!script) return;
+
+  script.params = script.params || {};
+  script.params[key] = field.type === 'number'
+    ? Number(field.value) || 0
+    : field.type === 'checkbox' ? field.checked : field.value;
+
+  syncSceneSettingsFromScript();
+  markDirty();
+  rebuild().catch((err) => setStatus(err.message, true));
+}
+
+function onSceneScriptClick(event) {
+  if (state.selectedId !== SCENE_ID) return;
+
+  const remove = event.target.closest('[data-scene-script-remove]');
+  if (remove) {
+    const index = Number(remove.dataset.sceneScriptRemove);
+    (state.sceneRoot.scripts || []).splice(index, 1);
+    syncSceneSettingsFromScript();
+    markDirty();
+    rebuild().catch((err) => setStatus(err.message, true));
+    return;
+  }
+
+  const add = event.target.closest('[data-scene-script-add]');
+  if (add) {
+    const file = document.getElementById('scene-script-pick')?.value;
+    if (!file) return;
+
+    state.sceneRoot.scripts = [...(state.sceneRoot.scripts || []), { file, params: {} }];
+    syncSceneSettingsFromScript();
+    markDirty();
+    rebuild().catch((err) => setStatus(err.message, true));
+  }
+}
+
+inspectorEl.addEventListener('input', onSceneScriptField);
+inspectorEl.addEventListener('change', onSceneScriptField);
+inspectorEl.addEventListener('click', onSceneScriptClick);
+
 function renderInspector() {
   if (state.mode === 'scene' && state.selectedId === SCENE_ID) {
     renderSceneInspector();
+    hydrateReticlePreviews();
     return;
   }
 
@@ -952,6 +1088,38 @@ function renderInspector() {
     </div>`
   );
 
+  if (type === 'reticle') {
+    const reticle = raw.reticle || {};
+    const designs = (state.scripts || []).filter((file) => String(file).startsWith('reticles/'));
+    const currentDesign = (raw.scripts || [])
+      .map((script) => (typeof script === 'string' ? script : script.file))
+      .find((file) => String(file).startsWith('reticles/')) || '';
+    const designOptions = [
+      '<option value="">— нет —</option>',
+      ...designs.map((file) => `<option value="${file}"${file === currentDesign ? ' selected' : ''}>${file.replace('reticles/', '')}</option>`)
+    ].join('');
+
+    const behavior = (raw.scripts || [])
+      .map((script) => (typeof script === 'string' ? script : script.file))
+      .find((file) => file === 'reticle.js' || file === 'cursor.js') || '';
+    const roleOptions = [
+      ['', '— только виджет —'],
+      ['reticle.js', 'прицел точки'],
+      ['cursor.js', 'курсор']
+    ].map(([file, label]) => `<option value="${file}"${file === behavior ? ' selected' : ''}>${label}</option>`).join('');
+
+    parts.push(
+      '<h4>Прицел</h4>',
+      `<div class="reticle-preview-slot" data-preview-reticle="${escapeHtml(raw.id)}"></div>`,
+      `<div class="row"><span>дизайн</span><select data-reticle-design>${designOptions}</select></div>`,
+      `<div class="row"><span>роль</span><select data-reticle-role>${roleOptions}</select></div>`,
+      numberInput('размер, px', 'reticle.size', reticle.size ?? RETICLE_DEFAULTS.size, 1, 16, 120),
+      colorInput('цвет', 'reticle.color', reticle.color || RETICLE_DEFAULTS.color),
+      colorInput('наведение', 'reticle.aimColor', reticle.aimColor || RETICLE_DEFAULTS.aimColor),
+      '<p class="hint-inline">Роль — это скрипт на самом объекте: reticle.js рисует прицел точки, cursor.js — виджет у мыши. Без роли объект остаётся только заготовкой. Дизайн (reticles/*.js) задаёт форму и параметры.</p>'
+    );
+  }
+
   if (type === 'model' || type === 'bot') {
     const currentAsset = raw.asset || (type === 'bot' ? 'spaceship' : '');
     parts.push(
@@ -959,6 +1127,40 @@ function renderInspector() {
       `<div class="row"><span>модель</span><select data-path="asset">${modelAssetOptions(currentAsset)}</select></div>`,
       '<p class="hint-inline">Смена меша пересобирает объект; физика и коллайдер остаются прежними — их можно поправить ниже или в редакторе модели.</p>'
     );
+
+    const materialOptions = state.materials
+      .map((material) => `<option value="${material.id}"${raw.materialId === material.id ? ' selected' : ''}>${escapeHtml(material.title || material.id)}</option>`)
+      .join('');
+    parts.push(
+      '<h4>Материал</h4>',
+      `<div class="row"><span>материал</span><select data-path="materialId"><option value="">— обычный —</option>${materialOptions}</select></div>`,
+      '<p class="hint-inline">Материал из public/materials: щит рисуется прозрачной оболочкой с пятном в точке попадания, коллайдер остаётся прежним.</p>'
+    );
+
+    const currentMaterial = state.materials.find((material) => material.id === raw.materialId) || null;
+    if (currentMaterial) {
+      parts.push(
+        '<div class="fit-actions">',
+        `<button type="button" data-edit-material="${currentMaterial.id}">Редактировать материал</button>`,
+        currentMaterial.shader === 'shield'
+          ? `<button type="button" data-test-hit="${raw.id}">Тест попадания</button>`
+          : '',
+        '</div>'
+      );
+    }
+
+    // Части модели: галочка = часть видна. Снятая галочка скрывает оборудование
+    const modelParts = state.modelParts[currentAsset] || [];
+    if (modelParts.length > 1) {
+      const hidden = Array.isArray(raw.hiddenParts) ? raw.hiddenParts : [];
+      parts.push(
+        '<h4>Части модели</h4>',
+        '<div class="part-tree">',
+        ...modelParts.map((part) => `<label class="part-row"><input type="checkbox" data-part-toggle="${escapeHtml(part.name)}"${hidden.includes(part.name) ? '' : ' checked'}><span>${escapeHtml(part.name)}</span><em>${part.triangles} тр.</em></label>`),
+        '</div>',
+        '<p class="hint-inline">Снятая галочка скрывает часть в редакторе и в игре. Так собирают модульный корабль: скройте штатное оборудование и добавьте своё дочерним объектом — модель можно извлечь в редакторе модели.</p>'
+      );
+    }
   }
 
   if (type === 'primitive') {
@@ -1027,6 +1229,16 @@ function renderInspector() {
     );
   }
 
+  if (type === 'model') {
+    const mouse = raw.mouse || {};
+    parts.push(
+      '<h4>Взаимодействие с мышью</h4>',
+      `<div class="row"><span>наведение</span><label class="toggle"><input type="checkbox" data-kind="check" data-path="mouse.hover" ${mouse.hover ? 'checked' : ''}> определять наведение</label></div>`,
+      `<div class="row"><span>клик</span><label class="toggle"><input type="checkbox" data-kind="check" data-path="mouse.click" ${mouse.click ? 'checked' : ''}> определять клик</label></div>`,
+      '<p class="hint-inline">В игре движок пускает луч из камеры через курсор. События pointer.hover / pointer.leave / pointer.click получают скрипты сцены через api.on и onEvent.</p>'
+    );
+  }
+
   const scriptsList = raw.scripts || [];
   parts.push('<h4>Скрипты</h4>');
 
@@ -1045,6 +1257,17 @@ function renderInspector() {
 
         if (meta.type === 'entity') {
           parts.push(selectInput(meta.label || key, path, value, entityChoices(value)));
+          continue;
+        }
+
+        if (meta.type === 'reticle') {
+          parts.push(selectInput(meta.label || key, path, value, reticleChoices(value)));
+          parts.push(`<div class="reticle-preview-slot" data-preview-reticle="${escapeHtml(String(value || ''))}"></div>`);
+          continue;
+        }
+
+        if (meta.type === 'color') {
+          parts.push(colorInput(meta.label || key, path, /^#[0-9a-f]{3,6}$/i.test(String(value)) ? value : '#68daff'));
           continue;
         }
 
@@ -1209,6 +1432,72 @@ function renderInspector() {
   parts.push('<p class="hint-inline">Изменения применяются сразу. Сохранение — Ctrl+S или кнопка вверху.</p>');
 
   inspectorEl.innerHTML = parts.join('');
+  hydrateReticlePreviews();
+}
+
+/* --------------------------- Предпросмотр прицела ------------------------- */
+
+const reticlePreviews = [];
+let reticlePreviewToken = 0;
+
+function disposeReticlePreviews() {
+  for (const view of reticlePreviews) view.dispose();
+  reticlePreviews.length = 0;
+}
+
+/** Дескриптор дизайна из скрипта сущности: reticles/*.js → design(params). */
+async function reticleDesignOf(raw) {
+  const script = (raw?.scripts || [])
+    .map((item) => (typeof item === 'string' ? { file: item } : item))
+    .find((item) => String(item?.file || '').startsWith('reticles/'));
+
+  if (!script) return null;
+
+  try {
+    const module = await import(`/scripts/${script.file}`);
+    if (typeof module.design !== 'function') return null;
+
+    const defaults = {};
+    for (const [key, meta] of Object.entries(module.params || {})) {
+      if (meta && Object.prototype.hasOwnProperty.call(meta, 'default')) defaults[key] = meta.default;
+    }
+
+    return module.design({ ...defaults, ...(script.params || {}) });
+  } catch {
+    return null;
+  }
+}
+
+/** Показать выбранные прицелы прямо в инспекторе. */
+async function hydrateReticlePreviews() {
+  disposeReticlePreviews();
+
+  const slots = [...inspectorEl.querySelectorAll('[data-preview-reticle]')];
+  if (!slots.length) return;
+
+  const token = ++reticlePreviewToken;
+
+  for (const slot of slots) {
+    const id = slot.dataset.previewReticle;
+    const raw = id ? findRaw(state.doc?.entities, id)?.raw : null;
+
+    if (!raw) {
+      slot.innerHTML = `<p class="hint-inline">${escapeHtml(slot.dataset.previewEmpty || 'Прицел не выбран — движок возьмёт дизайн по умолчанию.')}</p>`;
+      continue;
+    }
+
+    const design = await reticleDesignOf(raw);
+    if (token !== reticlePreviewToken) return;
+
+    const view = createReticleView({
+      mount: slot,
+      config: { ...(raw.reticle || {}), design }
+    });
+
+    view.element.classList.add('visible');
+    view.setState({});
+    reticlePreviews.push(view);
+  }
 }
 
 /* ------------------------------ Применение правок ------------------------- */
@@ -1270,6 +1559,9 @@ function applyChange(path) {
     if (entity) entity.raw.camera = camera;
     return;
   }
+
+  // Флажки мыши читаются в момент события — пересборка сцены не нужна
+  if (root === 'mouse') return;
 
   if (TRANSFORM_PATHS.includes(root) && root !== 'size' && root !== 'trigger') {
     if (entity) {
@@ -1358,6 +1650,21 @@ inspectorEl.addEventListener('input', (event) => {
 });
 
 inspectorEl.addEventListener('change', (event) => {
+  const partToggle = event.target.closest('input[data-part-toggle]');
+  if (partToggle) {
+    const found = selected();
+    if (!found) return;
+
+    const name = partToggle.dataset.partToggle;
+    const hidden = new Set(Array.isArray(found.raw.hiddenParts) ? found.raw.hiddenParts : []);
+    if (partToggle.checked) hidden.delete(name);
+    else hidden.add(name);
+
+    found.raw.hiddenParts = [...hidden];
+    markDirty();
+    return;
+  }
+
   const input = event.target.closest('[data-path]');
   if (!input) return;
 
@@ -1385,9 +1692,75 @@ inspectorEl.addEventListener('change', (event) => {
   applyChange(input.dataset.path);
 });
 
+// Смена дизайна прицела: заменяем скрипт reticles/* у сущности целиком
+inspectorEl.addEventListener('change', (event) => {
+  const select = event.target.closest('[data-reticle-design]');
+  if (!select) return;
+
+  const found = selected();
+  if (!found) return;
+
+  const file = select.value;
+  const rest = (found.raw.scripts || []).filter((script) => {
+    const name = typeof script === 'string' ? script : script?.file;
+    return !String(name || '').startsWith('reticles/');
+  });
+
+  found.raw.scripts = file ? [...rest, { file, params: {} }] : rest;
+  markDirty();
+  rebuild().catch((err) => setStatus(err.message, true));
+});
+
+// Смена роли: reticle.js (прицел точки) или cursor.js (виджет у мыши)
+inspectorEl.addEventListener('change', (event) => {
+  const select = event.target.closest('[data-reticle-role]');
+  if (!select) return;
+
+  const found = selected();
+  if (!found) return;
+
+  const file = select.value;
+  const rest = (found.raw.scripts || []).filter((script) => {
+    const name = typeof script === 'string' ? script : script?.file;
+    return name !== 'reticle.js' && name !== 'cursor.js';
+  });
+
+  found.raw.scripts = file ? [...rest, { file, params: {} }] : rest;
+  markDirty();
+  rebuild().catch((err) => setStatus(err.message, true));
+});
+
 inspectorEl.addEventListener('click', (event) => {
   const found = selected();
   if (!found) return;
+
+  const editMaterial = event.target.closest('[data-edit-material]');
+  if (editMaterial) {
+    window.open(`material-editor.html?material=${encodeURIComponent(editMaterial.dataset.editMaterial)}`, '_blank', 'noopener');
+    return;
+  }
+
+  const testHit = event.target.closest('[data-test-hit]');
+  if (testHit) {
+    const entity = state.entities.find((item) => item.id === testHit.dataset.testHit);
+    const bounds = entity?.model?.bounds;
+
+    if (bounds) {
+      // Точка на правом борту оболочки — в мире, как ждёт шейдер
+      const local = [
+        (bounds.min[0] + bounds.max[0]) / 2 + (bounds.max[0] - bounds.min[0]) * 0.45,
+        (bounds.min[1] + bounds.max[1]) / 2,
+        (bounds.min[2] + bounds.max[2]) / 2
+      ];
+      const position = M4.transformPoint(entity.matrix, local);
+
+      entity.shieldHits = entity.shieldHits || [];
+      entity.shieldHits.unshift({ position, age: 0 });
+      if (entity.shieldHits.length > 4) entity.shieldHits.length = 4;
+      setStatus('Тест попадания: пятно на щите');
+    }
+    return;
+  }
 
   const removeBtn = event.target.closest('[data-remove-script]');
   const addBtn = event.target.closest('[data-add-script]');
@@ -1488,6 +1861,9 @@ function drawMeshPart(part, matrix, emissive = part.emissive) {
     gl.bindTexture(gl.TEXTURE_2D, part.material.rough);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, part.material.metal);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, part.material.emissive || part.material.albedo);
+    gl.uniform1f(meshLoc.u.uEmissiveMapOn, part.material.emissive ? 1 : 0);
     gl.uniform1f(u.uTextured, 1);
   } else {
     gl.uniform1f(u.uTextured, 0);
@@ -1504,6 +1880,26 @@ function drawMeshPart(part, matrix, emissive = part.emissive) {
   gl.bindBuffer(gl.ARRAY_BUFFER, part.mesh.uvBuffer);
   gl.enableVertexAttribArray(a.uv);
   gl.vertexAttribPointer(a.uv, 2, gl.FLOAT, false, 0, 0);
+
+  if (part.mesh.indexBuffer) {
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.mesh.indexBuffer);
+    gl.drawElements(gl.TRIANGLES, part.mesh.count, part.mesh.indexType, 0);
+  } else {
+    gl.drawArrays(gl.TRIANGLES, 0, part.mesh.count);
+  }
+}
+
+/** Деталь щита: геометрия та же, программа shield и без текстур. */
+function drawShieldPart(part, matrix) {
+  gl.uniformMatrix4fv(shieldLoc.u.uModel, false, matrix);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, part.mesh.positionBuffer);
+  gl.enableVertexAttribArray(shieldLoc.a.position);
+  gl.vertexAttribPointer(shieldLoc.a.position, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, part.mesh.normalBuffer);
+  gl.enableVertexAttribArray(shieldLoc.a.normal);
+  gl.vertexAttribPointer(shieldLoc.a.normal, 3, gl.FLOAT, false, 0, 0);
 
   if (part.mesh.indexBuffer) {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.mesh.indexBuffer);
@@ -1685,6 +2081,11 @@ function pushEntityOutline(vertices, entity, color) {
   const trigger = entity.raw.trigger;
 
   if (entity.raw.type === 'empty') {
+    pushEmptyMarker(vertices, entity, color);
+    return;
+  }
+
+  if (entity.raw.type === 'reticle') {
     pushEmptyMarker(vertices, entity, color);
     return;
   }
@@ -1922,12 +2323,23 @@ function render() {
   gl.uniform1i(u.uAlbedoMap, 0);
   gl.uniform1i(u.uRoughMap, 1);
   gl.uniform1i(u.uMetalMap, 2);
+  gl.uniform1i(u.uEmissiveMap, 3);
 
   const drawable = state.entities.filter((entity) => entity.model && entity.visible !== false);
 
+  // Старим тестовые попадания щитов, чтобы пятно таяло во вьюпорте
   for (const entity of drawable) {
+    const hits = entity.shieldHits;
+    if (!hits?.length) continue;
+    for (const hit of hits) hit.age += previewDt;
+    while (hits.length && hits[hits.length - 1].age > 2) hits.pop();
+  }
+
+  for (const entity of drawable) {
+    if (materialFor(entity)?.shader === 'shield') continue;
     for (const part of entity.model.parts) {
       if (part.blend === 'additive') continue;
+      if (partHidden(entity.raw?.hiddenParts, part.name)) continue;
       drawMeshPart(part, M4.mul(entity.matrix, part.matrix));
     }
   }
@@ -1937,10 +2349,72 @@ function render() {
   gl.depthMask(false);
 
   for (const entity of drawable) {
+    if (materialFor(entity)?.shader === 'shield') continue;
     for (const part of entity.model.parts) {
       if (part.blend !== 'additive') continue;
+      if (partHidden(entity.raw?.hiddenParts, part.name)) continue;
       drawMeshPart(part, M4.mul(entity.matrix, part.matrix));
     }
+  }
+
+  /* --- щиты: оболочка и тестовые попадания --- */
+  const shields = drawable.filter((entity) => materialFor(entity)?.shader === 'shield');
+  if (shields.length) {
+    gl.useProgram(shieldProgram.program);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.depthMask(false);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+
+    gl.uniformMatrix4fv(shieldLoc.u.uViewProj, false, viewProj);
+    gl.uniform3fv(shieldLoc.u.uCamera, eye);
+
+    const hitData = new Float32Array(16);
+
+    for (const entity of shields) {
+      const uniforms = materialFor(entity).uniforms || {};
+
+      gl.uniform3fv(shieldLoc.u.uColor, hexToRgb(uniforms.color, [0.35, 0.85, 1]));
+      gl.uniform3fv(shieldLoc.u.uHitColor, hexToRgb(uniforms.hitColor, [0.92, 1, 1]));
+      gl.uniform1f(shieldLoc.u.uBase, Number(uniforms.base) || 0);
+      gl.uniform1f(shieldLoc.u.uFresnel, Number(uniforms.fresnel) || 3);
+      gl.uniform1f(shieldLoc.u.uHitRadius, Number(uniforms.hitRadius) || 1.4);
+      gl.uniform1f(shieldLoc.u.uHexScale, Number(uniforms.hexScale) || 6);
+      gl.uniform1f(shieldLoc.u.uPatchLife, Number(uniforms.patchLife) || 0.35);
+      gl.uniform1f(shieldLoc.u.uRingLife, Number(uniforms.ringLife) || 0.3);
+
+      hitData.fill(0);
+      for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;
+
+      const hits = entity.shieldHits || [];
+      for (let i = 0; i < Math.min(4, hits.length); i++) {
+        const hit = hits[i];
+        if (!hit?.position) continue;
+        hitData[i * 4] = hit.position[0];
+        hitData[i * 4 + 1] = hit.position[1];
+        hitData[i * 4 + 2] = hit.position[2];
+        hitData[i * 4 + 3] = Math.max(0, Number(hit.age) || 0);
+      }
+      gl.uniform4fv(shieldLoc.u.uHits, hitData);
+
+      for (const part of entity.model.parts) {
+        if (partHidden(entity.raw?.hiddenParts, part.name)) continue;
+        drawShieldPart(part, M4.mul(entity.matrix, part.matrix));
+      }
+
+      if (hits.length) {
+        gl.disable(gl.DEPTH_TEST);
+        for (const part of entity.model.parts) {
+          if (partHidden(entity.raw?.hiddenParts, part.name)) continue;
+          drawShieldPart(part, M4.mul(entity.matrix, part.matrix));
+        }
+        gl.enable(gl.DEPTH_TEST);
+      }
+    }
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
   }
 
   gl.depthMask(true);
@@ -2460,6 +2934,11 @@ contextMenu.addEventListener('click', (event) => {
     return;
   }
 
+  if (action === 'refresh' && prefabId) {
+    refreshPrefab(prefabId).catch((err) => setStatus(err.message, true));
+    return;
+  }
+
   if (action === 'create') {
     savePrefab().catch((err) => setStatus(err.message, true));
     return;
@@ -2469,6 +2948,8 @@ contextMenu.addEventListener('click', (event) => {
   if (action === 'add-hud') addHud();
   if (action === 'add-trigger') addTrigger();
   if (action === 'add-camera') addCamera();
+  if (action === 'add-model') openModelsDialog().catch((err) => setStatus(err.message, true));
+  if (action === 'add-reticle') addReticle();
   if (action === 'add-prefab') openPrefabDialog().catch((err) => setStatus(err.message, true));
 });
 
@@ -2656,6 +3137,142 @@ function closePrefabDialog() {
   prefabDialog.hidden = true;
 }
 
+/* ------------------------- Модели: диалог и файлы ------------------------ */
+
+async function loadModelList() {
+  const data = await fetch('/api/models', { cache: 'no-store' })
+    .then((response) => response.json())
+    .catch(() => ({ models: [] }));
+
+  state.models = Array.isArray(data.models) ? data.models : [];
+}
+
+async function openModelsDialog() {
+  await loadModelList();
+  renderModelsDialog();
+  modelsDialog.hidden = false;
+}
+
+function closeModelsDialog() {
+  modelsDialog.hidden = true;
+}
+
+function renderModelsDialog() {
+  if (!state.models.length) {
+    modelsTable.innerHTML = '<p class="hint-inline">В public/models нет ни одной модели</p>';
+    return;
+  }
+
+  modelsTable.innerHTML = state.models.map((model) => `
+    <div class="model-row" data-id="${escapeHtml(model.id)}">
+      <input class="model-name" type="text" maxlength="80" value="${escapeHtml(model.name || model.id)}" data-model-name="${escapeHtml(model.id)}" title="Имя модели — сохраняется сразу">
+      <button type="button" class="model-insert primary" data-model-insert="${escapeHtml(model.id)}">Добавить</button>
+      <button type="button" class="model-edit" data-model-edit="${escapeHtml(model.id)}">Изменить</button>
+      <button type="button" class="model-delete danger" data-model-delete="${escapeHtml(model.id)}">Удалить</button>
+      <span class="model-meta">${escapeHtml(model.id)} · ${model.groups || 0} групп · ${Math.round((model.bytes || 0) / 1024)} КБ</span>
+    </div>`).join('');
+}
+
+async function saveModelName(id, value) {
+  const name = String(value || '').trim();
+
+  if (!name) {
+    setStatus('Имя модели не может быть пустым', true);
+    renderModelsDialog();
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/model/${encodeURIComponent(id)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) throw new Error(await response.text());
+
+    const model = state.models.find((item) => item.id === id);
+    if (model) model.name = name;
+
+    const row = modelsTable.querySelector(`.model-row[data-id="${CSS.escape(id)}"]`);
+    row?.classList.add('saved');
+    setTimeout(() => row?.classList.remove('saved'), 900);
+    setStatus(`Имя модели «${id}» сохранено: ${name}`);
+  } catch (err) {
+    setStatus(`Не удалось переименовать: ${err.message}`, true);
+    renderModelsDialog();
+  }
+}
+
+async function deleteModelAsset(id) {
+  if (!confirm(`Удалить модель «${id}» окончательно?`)) return;
+
+  try {
+    let response = await fetch(`/api/model/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+
+    // Сервер предупреждает, где модель уже используется — спрашиваем ещё раз
+    if (response.status === 409) {
+      const info = await response.json().catch(() => ({}));
+      const usages = Array.isArray(info.usages) ? info.usages : [];
+      const list = usages.length ? usages.map((item) => `• ${item}`).join('\n') : '';
+
+      if (!confirm(`Модель используется:\n${list}\n\nВсё равно удалить? Ссылки станут битыми.`)) return;
+
+      response = await fetch(`/api/model/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true })
+      });
+    }
+
+    if (!response.ok) throw new Error(await response.text());
+
+    state.models = state.models.filter((model) => model.id !== id);
+    renderModelsDialog();
+    await loadAssets();
+    setStatus(`Модель «${id}» удалена`);
+  } catch (err) {
+    setStatus(`Не удалось удалить модель: ${err.message}`, true);
+  }
+}
+
+modelsTable.addEventListener('change', (event) => {
+  const input = event.target.closest('input[data-model-name]');
+  if (!input) return;
+
+  saveModelName(input.dataset.modelName, input.value).catch((err) => setStatus(err.message, true));
+});
+
+modelsTable.addEventListener('click', (event) => {
+  const insert = event.target.closest('[data-model-insert]');
+  if (insert) {
+    const id = insert.dataset.modelInsert;
+    closeModelsDialog();
+    addModel(id).catch((err) => setStatus(err.message, true));
+    return;
+  }
+
+  const edit = event.target.closest('[data-model-edit]');
+  if (edit) {
+    window.open(`model-editor.html?model=${encodeURIComponent(edit.dataset.modelEdit)}`, '_blank', 'noopener');
+    return;
+  }
+
+  const remove = event.target.closest('[data-model-delete]');
+  if (remove) {
+    deleteModelAsset(remove.dataset.modelDelete).catch((err) => setStatus(err.message, true));
+  }
+});
+
+btnModelsDialogClose.addEventListener('click', closeModelsDialog);
+btnModelsDialogDone.addEventListener('click', closeModelsDialog);
+modelsDialog.addEventListener('click', (event) => {
+  if (event.target === modelsDialog) closeModelsDialog();
+});
+
 function hideContextMenu() {
   contextMenu.hidden = true;
   contextMenu.innerHTML = '';
@@ -2664,28 +3281,36 @@ function hideContextMenu() {
 
 function showContextMenu(x, y, raw = null) {
   const prefabId = raw ? prefabIdOf(raw) : null;
+  const prefabTitle = raw ? (raw.prefabTitle || prefabId) : '';
   const items = [];
 
   if (raw) {
     if (prefabId) {
-      items.push(['edit', `Редактировать префаб «${raw.prefabTitle || prefabId}»`]);
+      items.push(['edit', `Редактировать префаб «${prefabTitle}»`]);
+      // В самом префабе инстанса нет — обновлять нечего
+      if (state.mode === 'scene') items.push(['refresh', `Обновить префаб «${prefabTitle}»`]);
     } else {
       items.push(['create', 'Создать префаб']);
     }
   }
+
+  // Разделитель — после пунктов префаба, перед пунктами добавления
+  const separatorAt = raw ? items.length : -1;
 
   items.push(
     ['add-empty', 'Добавить пустой'],
     ['add-hud', 'Добавить HUD'],
     ['add-trigger', 'Добавить триггер'],
     ['add-camera', 'Добавить камеру'],
+    ['add-model', 'Модель'],
+    ['add-reticle', 'Добавить прицел'],
     ['add-prefab', 'Добавить префаб']
   );
 
   contextMenu.dataset.prefabId = prefabId || '';
   contextMenu.innerHTML = items
     .map(([action, label], index) => {
-      const separator = raw && index === 1 ? '<div class="context-sep"></div>' : '';
+      const separator = index === separatorAt ? '<div class="context-sep"></div>' : '';
       return `${separator}<button type="button" data-action="${action}">${escapeHtml(label)}</button>`;
     })
     .join('');
@@ -2710,11 +3335,20 @@ async function savePrefab() {
   const id = slugify(name) || 'prefab';
   if (state.prefabs.some((prefab) => prefab.id === id) && !confirm(`Префаб «${id}» уже есть. Перезаписать?`)) return;
 
+  const entities = [JSON.parse(JSON.stringify(found.raw))];
+
+  // Префаб должен быть самодостаточным: ссылки на объекты вне ветки
+  // и на несуществующие id очищаем, внутренние — остаются
+  const cleared = sanitizePrefabReferences(entities, {
+    sceneIds: collectIds(),
+    isEntityParam: (file, key) => ['entity', 'reticle'].includes(state.scriptSchemas[file]?.[key]?.type)
+  });
+
   const body = {
     version: 1,
     id,
     title: name,
-    entities: [JSON.parse(JSON.stringify(found.raw))]
+    entities
   };
 
   try {
@@ -2733,7 +3367,11 @@ async function savePrefab() {
     await rebuild();
 
     await loadPrefabs(id);
-    setStatus(`Префаб «${name}» сохранён: public/prefabs/${id}.json`);
+
+    const fixed = cleared.length
+      ? ` · очищено ссылок: ${cleared.length} (${cleared.slice(0, 4).map((item) => item.where).join(', ')}${cleared.length > 4 ? '…' : ''})`
+      : '';
+    setStatus(`Префаб «${name}» сохранён: public/prefabs/${id}.json${fixed}`, cleared.length > 0);
   } catch (err) {
     setStatus(`Не удалось сохранить префаб: ${err.message}`, true);
   }
@@ -2754,9 +3392,15 @@ async function insertPrefab(id) {
     const group = nestTarget();
     const parent = group && roots.some(hasDynamicBody) ? null : group;
     const taken = collectIds();
-    const clones = reassignIds(JSON.parse(JSON.stringify(roots)), (oldId) =>
-      uniqueIdFrom(String(oldId || 'node').replace(/-\d+$/, '') || 'node', taken)
-    );
+    const idMap = new Map();
+    const clones = reassignIds(JSON.parse(JSON.stringify(roots)), (oldId) => {
+      const next = uniqueIdFrom(String(oldId || 'node').replace(/-\d+$/, '') || 'node', taken);
+      if (oldId) idMap.set(String(oldId), next);
+      return next;
+    });
+
+    // Ссылки внутри префаба (gun-left, body, hud.target) переводим на новые id
+    remapEntityReferences(clones, idMap);
 
     // Запоминаем, из какого префаба вставлена ветка — для контекстного меню
     for (const raw of clones) {
@@ -2782,6 +3426,71 @@ async function insertPrefab(id) {
     }`);
   } catch (err) {
     setStatus(`Не удалось вставить префаб: ${err.message}`, true);
+  }
+}
+
+/**
+ * Перезаписать инстанс на сцене последними данными сохранённого префаба.
+ *
+ * Содержимое (дети, меши, скрипты, физика) приходит из файла, а id узлов и
+ * место установки остаются сценными: ссылки из других объектов продолжают
+ * работать, объект не прыгает к камере.
+ */
+async function refreshPrefab(prefabId) {
+  const found = selected();
+  if (!found || prefabIdOf(found.raw) !== prefabId) {
+    setStatus('Выберите объект, вставленный из этого префаба', true);
+    return;
+  }
+
+  if (state.mode !== 'scene') {
+    setStatus('Обновлять инстанс можно только в сцене', true);
+    return;
+  }
+
+  const title = found.raw.prefabTitle || prefabId;
+  const confirmed = confirm(
+    `Обновить «${title}» из public/prefabs/${prefabId}.json?\n`
+    + 'Правки объекта на сцене будут заменены сохранёнными данными префаба.'
+  );
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`/api/prefab/${encodeURIComponent(prefabId)}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`префаб «${prefabId}» не найден в public/prefabs`);
+    const prefab = await response.json();
+
+    const incoming = Array.isArray(prefab.entities) ? prefab.entities : [];
+    if (!incoming.length) throw new Error('в префабе нет сущностей');
+
+    const list = found.parent ? found.parent.children : state.doc.entities;
+    const index = list.indexOf(found.raw);
+    if (index < 0) throw new Error('объект потерялся в дереве сцены');
+
+    const result = refreshPrefabRoots([found.raw], incoming, { taken: collectIds() });
+    const roots = result.entities.filter((raw) => raw && typeof raw === 'object');
+    if (!roots.length) throw new Error('префаб пуст');
+
+    // Метка префаба — заново: иначе после обновления пропало бы меню.
+    // Корней может быть несколько — insertPrefab метит их так же.
+    for (const raw of roots) {
+      raw.prefabId = prefabId;
+      raw.prefabTitle = prefab.title || title;
+    }
+
+    list.splice(index, 1, ...roots);
+
+    state.selectedId = roots[0].id;
+    markDirty();
+    await rebuild();
+
+    const parts = [`узлов: ${result.kept + result.added}`];
+    if (result.added) parts.push(`новых: ${result.added}`);
+    if (result.removed) parts.push(`убрано: ${result.removed}`);
+    if (roots.length > 1) parts.push(`корней: ${roots.length}`);
+    setStatus(`Префаб «${roots[0].prefabTitle}» обновлён на сцене · ${parts.join(', ')}`);
+  } catch (err) {
+    setStatus(`Не удалось обновить префаб: ${err.message}`, true);
   }
 }
 
@@ -2825,6 +3534,7 @@ prefabDialog.addEventListener('click', (event) => {
 });
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !prefabDialog.hidden) closePrefabDialog();
+  else if (event.key === 'Escape' && !modelsDialog.hidden) closeModelsDialog();
 });
 btnPrefabDelete.addEventListener('click', () => deletePrefab().catch((err) => setStatus(err.message, true)));
 
@@ -2841,6 +3551,30 @@ function addEmpty() {
     position: spawnPosition(parent),
     rotation: [0, 0, 0],
     scale: 1,
+    children: []
+  };
+
+  insertRaw(raw, parent);
+  state.selectedId = raw.id;
+  rebuild().catch((err) => setStatus(err.message, true));
+}
+
+function addReticle() {
+  markDirty();
+
+  const parent = nestTarget();
+  const raw = {
+    id: uniqueId('reticle'),
+    type: 'reticle',
+    name: 'Прицел',
+    position: spawnPosition(parent),
+    rotation: [0, 0, 0],
+    scale: 1,
+    reticle: { ...RETICLE_DEFAULTS },
+    scripts: [{
+      file: 'reticles/crosshair.js',
+      params: { spin: 24, scan: 4.8, breathe: 2.8 }
+    }, { file: 'reticle.js', params: {} }],
     children: []
   };
 
@@ -2952,6 +3686,42 @@ async function loadAssets() {
     state.assets = [];
     assetSelect.innerHTML = '';
   }
+
+  await loadModelParts();
+  await loadMaterials();
+}
+
+/** Материалы из public/materials — для выбора в инспекторе. */
+async function loadMaterials() {
+  try {
+    const data = await fetch('/api/materials', { cache: 'no-store' }).then((response) => response.json());
+    state.materials = (Array.isArray(data.materials) ? data.materials : [])
+      .map((item) => {
+        try {
+          return normalizeMaterial(item, item.id);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    state.materials = [];
+  }
+}
+
+/** Части всех моделей — для дерева скрытия в инспекторе. */
+async function loadModelParts() {
+  const entries = await Promise.all(state.assets.map(async (id) => {
+    try {
+      const response = await fetch(`models/${id}.json`, { cache: 'no-store' });
+      if (!response.ok) return [id, []];
+      return [id, listObjects(await response.json())];
+    } catch {
+      return [id, []];
+    }
+  }));
+
+  state.modelParts = Object.fromEntries(entries);
 }
 
 async function loadEffects() {
@@ -3291,10 +4061,8 @@ function buildScenePayload() {
       id: root.id || 'scene',
       type: 'scene',
       name: root.name || 'Сцена',
-      background: root.background || '#000000',
-      hud: root.hudStyle ? { style: root.hudStyle } : {},
-      loading: { ...(root.loading || {}) },
       player: { ...(root.player || {}) },
+      scripts: root.scripts || [],
       children: state.doc.entities || []
     }]
   };

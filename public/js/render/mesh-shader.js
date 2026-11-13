@@ -45,6 +45,10 @@ uniform float uRoughness;
 uniform sampler2D uAlbedoMap;
 uniform sampler2D uRoughMap;
 uniform sampler2D uMetalMap;
+// Эмиссивная маска: белый пиксель — деталь светится, чёрный — нет.
+// Для моделей без карты грузится белая 1×1, то есть маска пропускает всё.
+uniform sampler2D uEmissiveMap;
+uniform float uEmissiveMapOn;
 
 float hash(vec3 p) {
   return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
@@ -54,6 +58,9 @@ void main() {
   vec3 albedo = uColor;
   float rough = 0.55;
   float metal = uMetal;
+  // Эмиссия умножается на маску из атласа: у импортированных моделей
+  // glow задан на всю группу, а светятся только сопла и лампочки
+  vec3 glow = uEmissive;
 
   if (uTextured > 0.5) {
     // OBJ хранит V снизу вверх — переворачиваем при сэмплировании
@@ -73,6 +80,7 @@ void main() {
 
     rough = texture2D(uRoughMap, uv).r * uRoughness;
     metal = texture2D(uMetalMap, uv).r * uMetal;
+    glow *= mix(1.0, dot(texture2D(uEmissiveMap, uv).rgb, vec3(0.299, 0.587, 0.114)), uEmissiveMapOn);
   } else {
     float grime = hash(floor(vLocal * 0.9)) * 0.6 + hash(floor(vLocal * 3.0)) * 0.4;
     albedo *= 0.88 + 0.24 * grime;
@@ -102,7 +110,7 @@ void main() {
   color += albedo * 0.1;
   color += vec3(0.95, 0.97, 1.0) * spec;
   color += env * clamp(metal, 0.0, 1.0) * (0.5 + 0.5 * fres) * 1.0;
-  color += uEmissive;
+  color += glow;
 
   gl_FragColor = vec4(pow(clamp(color, 0.0, 4.0), vec3(1.0)), 1.0);
 }`;

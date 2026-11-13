@@ -1,0 +1,1253 @@
+{
+  "version": 1,
+  "id": "bots-demo",
+  "title": "Боты",
+  "entities": [
+    {
+      "id": "scene",
+      "type": "scene",
+      "name": "Сцена",
+      "player": {
+        "model": "corinth"
+      },
+      "children": [
+        {
+          "id": "orbital-station-1",
+          "type": "model",
+          "name": "orbital-station",
+          "asset": "orbital-station",
+          "position": [
+            0,
+            0,
+            -306.911
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "body": {
+            "kind": "static",
+            "collider": {
+              "shape": "sphere",
+              "radius": 615
+            }
+          },
+          "visible": true,
+          "scripts": [
+            {
+              "file": "station.js",
+              "params": {
+                "name": "Орбитальная станция «Ковчег»"
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "hud-station-label",
+              "type": "hud",
+              "name": "Название станции",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "hud": {
+                "file": "hud/station-name.html",
+                "follow": "parent",
+                "target": null,
+                "offset": [
+                  0,
+                  -70
+                ],
+                "anchor": "center",
+                "scale": 1,
+                "bind": null,
+                "startHidden": false
+              }
+            }
+          ],
+          "prefabId": "orbital-station",
+          "prefabTitle": "orbital-station"
+        },
+        {
+          "id": "trigger-1",
+          "type": "trigger",
+          "position": [
+            0,
+            2.5,
+            -153.009
+          ],
+          "trigger": {
+            "shape": "sphere",
+            "size": [
+              14,
+              10,
+              14
+            ],
+            "once": false,
+            "radius": 100
+          },
+          "scale": [
+            0.2,
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "id": "orbital-station-2",
+          "type": "model",
+          "name": "orbital-station",
+          "asset": "orbital-station",
+          "position": [
+            -349.348,
+            0,
+            -130
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "body": {
+            "kind": "static",
+            "collider": {
+              "shape": "sphere",
+              "radius": 615
+            }
+          },
+          "visible": true,
+          "scripts": [
+            {
+              "file": "station.js",
+              "params": {
+                "name": "Орбитальная станция «Ковчег»"
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "hud-station-label-1",
+              "type": "hud",
+              "name": "Название станции",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "hud": {
+                "file": "hud/station-name.html",
+                "follow": "parent",
+                "target": null,
+                "offset": [
+                  0,
+                  -70
+                ],
+                "anchor": "center",
+                "scale": 1,
+                "bind": null,
+                "startHidden": false
+              }
+            }
+          ]
+        },
+        {
+          "id": "player-ship-1",
+          "type": "empty",
+          "name": "Игрок",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1,
+          "body": {
+            "kind": "dynamic",
+            "mass": 12,
+            "lockRotation": true,
+            "restitution": 0.55,
+            "friction": 0.18
+          },
+          "scripts": [
+            "input.js",
+            "movement.js",
+            "rotation.js",
+            {
+              "file": "weapons.js",
+              "params": {
+                "body": "corinth-cargo-transported-1",
+                "muzzleLeft": "gun-left",
+                "muzzleRight": "gun-right",
+                "targetDistance": 500,
+                "laserDuration": 0.45,
+                "pointerWidth": 8,
+                "mgCount": 25,
+                "mgInterval": 0.2,
+                "mgCooldown": 0.8,
+                "mgSpeed": 650,
+                "mgLife": 1.2,
+                "rocketCooldown": 1.4,
+                "rocketSpeed": 95,
+                "rocketLife": 6
+              }
+            },
+            {
+              "file": "mining.js",
+              "params": {
+                "origin": "mining-origin",
+                "body": "corinth-cargo-transported-1",
+                "range": 60,
+                "cycleTime": 2.6,
+                "decay": 0.7,
+                "sparkInterval": 0.05
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "gun-left-1",
+              "type": "empty",
+              "name": "gun-left",
+              "position": [
+                0.5,
+                0.823,
+                3.286
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "children": []
+            },
+            {
+              "id": "gun-right-1",
+              "type": "empty",
+              "name": "gun-right",
+              "position": [
+                -0.5,
+                0.823,
+                3.286
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "children": []
+            },
+            {
+              "id": "mining-origin-1",
+              "type": "empty",
+              "name": "mining-origin",
+              "position": [
+                0,
+                1.152,
+                0.531
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "children": []
+            },
+            {
+              "id": "camera-1",
+              "type": "camera",
+              "name": "camera",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "camera": {
+                "height": 20,
+                "distance": 120,
+                "drop": 0,
+                "tilt": 0,
+                "fov": 50,
+                "near": 0.1,
+                "far": 5000,
+                "background": "#000000"
+              },
+              "scripts": [
+                {
+                  "file": "camera.js",
+                  "params": {
+                    "body": "corinth-cargo-transported-1",
+                    "height": 21,
+                    "distance": 1,
+                    "drop": 6.5,
+                    "tilt": 71,
+                    "side": 0,
+                    "fov": 55,
+                    "lag": 6
+                  }
+                }
+              ],
+              "children": []
+            },
+            {
+              "id": "corinth-cargo-transported-1",
+              "type": "model",
+              "name": "corinth-cargo-transported",
+              "asset": "corinth-cargo-transported",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "body": {
+                "kind": "static",
+                "mass": 0,
+                "restitution": 0.55,
+                "friction": 0.2,
+                "collider": {
+                  "shape": "compound",
+                  "spheres": [],
+                  "boxes": [
+                    {
+                      "offset": [
+                        -1.551,
+                        -0.142,
+                        -2.357
+                      ],
+                      "halfExtents": [
+                        0.489,
+                        0.933,
+                        0.933
+                      ]
+                    },
+                    {
+                      "offset": [
+                        1.628,
+                        0.006,
+                        -2.357
+                      ],
+                      "halfExtents": [
+                        0.409,
+                        1.081,
+                        0.933
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.226,
+                        -0.142,
+                        0.161
+                      ],
+                      "halfExtents": [
+                        1.081,
+                        0.933,
+                        3.45
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.107,
+                        1.191,
+                        -2.357
+                      ],
+                      "halfExtents": [
+                        0.637,
+                        0.193,
+                        0.933
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.818,
+                        1.043,
+                        -1.764
+                      ],
+                      "halfExtents": [
+                        0.193,
+                        0.044,
+                        1.525
+                      ]
+                    },
+                    {
+                      "offset": [
+                        1.114,
+                        1.339,
+                        -2.357
+                      ],
+                      "halfExtents": [
+                        0.489,
+                        0.044,
+                        0.933
+                      ]
+                    },
+                    {
+                      "offset": [
+                        1.776,
+                        -0.29,
+                        2.086
+                      ],
+                      "halfExtents": [
+                        0.261,
+                        0.785,
+                        0.933
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.374,
+                        1.043,
+                        0.901
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        2.71
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.403,
+                        0.747,
+                        -1.468
+                      ],
+                      "halfExtents": [
+                        0.341,
+                        0.044,
+                        0.044
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.255,
+                        -0.142,
+                        -1.024
+                      ],
+                      "halfExtents": [
+                        0.193,
+                        0.933,
+                        0.193
+                      ]
+                    },
+                    {
+                      "offset": [
+                        1.559,
+                        0.451,
+                        -1.024
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        0.193
+                      ]
+                    },
+                    {
+                      "offset": [
+                        1.559,
+                        0.451,
+                        1.79
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        1.229
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -0.366,
+                        1.043,
+                        -0.728
+                      ],
+                      "halfExtents": [
+                        0.489,
+                        0.044,
+                        0.489
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.107,
+                        -0.142,
+                        1.197
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.933,
+                        1.821
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.403,
+                        -0.586,
+                        -0.58
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.193,
+                        0.044
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.403,
+                        0.451,
+                        -0.58
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.341,
+                        0.044
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.67,
+                        1.043,
+                        0.753
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        0.489
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.67,
+                        1.043,
+                        2.086
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        0.341
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.078,
+                        1.339,
+                        0.161
+                      ],
+                      "halfExtents": [
+                        0.341,
+                        0.044,
+                        0.489
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -0.218,
+                        1.043,
+                        1.79
+                      ],
+                      "halfExtents": [
+                        0.341,
+                        0.044,
+                        1.821
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -0.811,
+                        1.043,
+                        0.753
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        0.489
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.403,
+                        -0.142,
+                        1.79
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.933,
+                        1.229
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.966,
+                        1.043,
+                        0.901
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        0.341
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -1.847,
+                        -0.29,
+                        2.086
+                      ],
+                      "halfExtents": [
+                        0.193,
+                        0.785,
+                        0.933
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.67,
+                        -0.142,
+                        3.27
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.341,
+                        0.044
+                      ]
+                    },
+                    {
+                      "offset": [
+                        -0.514,
+                        -0.142,
+                        3.567
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.341,
+                        0.044
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.374,
+                        -0.142,
+                        3.567
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.341,
+                        0.044
+                      ]
+                    },
+                    {
+                      "offset": [
+                        0.67,
+                        0.154,
+                        3.567
+                      ],
+                      "halfExtents": [
+                        0.044,
+                        0.044,
+                        0.044
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": "corinth-cargo-transported-shield-1",
+              "type": "model",
+              "name": "corinth_cargo_transported_shield",
+              "asset": "corinth-cargo-transported-shield",
+              "materialId": "shield",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "body": {
+                "kind": "static",
+                "collider": {
+                  "shape": "sphere",
+                  "radius": 4.2
+                }
+              },
+              "visible": true,
+              "effects": [
+                {
+                  "id": "effect-1",
+                  "effect": "impact-spark",
+                  "trigger": "manual",
+                  "loop": true,
+                  "duration": 0.35,
+                  "offset": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": 1,
+                  "params": {}
+                }
+              ],
+              "scripts": [
+                {
+                  "file": "ship/shield.js"
+                }
+              ]
+            },
+            {
+              "id": "empty-1",
+              "type": "empty",
+              "name": "HUD",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "children": [
+                {
+                  "id": "hud-menu-1",
+                  "name": "Меню",
+                  "type": "hud",
+                  "position": [
+                    51.845,
+                    22.92,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/menu.html",
+                    "follow": "none",
+                    "anchor": "center",
+                    "startHidden": true
+                  }
+                },
+                {
+                  "id": "hud-mining-1",
+                  "type": "hud",
+                  "name": "Добыча",
+                  "position": [
+                    51.845,
+                    -7.08,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/mining.html",
+                    "follow": "none",
+                    "anchor": "center",
+                    "startHidden": false
+                  }
+                },
+                {
+                  "id": "hud-1",
+                  "type": "hud",
+                  "name": "Оружие",
+                  "position": [
+                    51.845,
+                    -17.08,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/weapons.html",
+                    "bind": null
+                  }
+                },
+                {
+                  "id": "hud-2",
+                  "type": "hud",
+                  "name": "Управление",
+                  "position": [
+                    51.845,
+                    -17.08,
+                    120.665
+                  ],
+                  "rotation": [
+                    0,
+                    0,
+                    0
+                  ],
+                  "scale": [
+                    1,
+                    1,
+                    1
+                  ],
+                  "hud": {
+                    "file": "hud/keys.html",
+                    "follow": "none",
+                    "offset": [
+                      0,
+                      0
+                    ],
+                    "anchor": "top-left",
+                    "scale": 1,
+                    "bind": null
+                  },
+                  "visible": true
+                }
+              ],
+              "prefabId": "hud",
+              "prefabTitle": "HUD"
+            },
+            {
+              "id": "weapon-target-1",
+              "type": "empty",
+              "name": "weapon-target",
+              "position": [
+                0,
+                0,
+                -50
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "children": [],
+              "scripts": [
+                {
+                  "file": "target.js",
+                  "params": {
+                    "player": "player-ship-1",
+                    "reticle": "reticle-1"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "reticle-1",
+              "type": "reticle",
+              "name": "Прицел",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1,
+              "reticle": {
+                "size": 34,
+                "color": "#68daff",
+                "aimColor": "#ffc857"
+              },
+              "children": [],
+              "scripts": [
+                {
+                  "file": "reticles/crosshair.js",
+                  "params": {
+                    "spin": 24,
+                    "scan": 4.8,
+                    "breathe": 2.8
+                  }
+                },
+                {
+                  "file": "reticle.js",
+                  "params": {}
+                }
+              ]
+            }
+          ],
+          "prefabId": "igrok",
+          "prefabTitle": "Игрок"
+        },
+        {
+          "id": "bot-1",
+          "type": "empty",
+          "name": "Бот 1",
+          "position": [
+            34.325,
+            0,
+            -35.746
+          ],
+          "rotation": [
+            0,
+            20,
+            0
+          ],
+          "scale": 1,
+          "tags": [
+            "bot"
+          ],
+          "scripts": [
+            {
+              "file": "bots/aim-attack.js",
+              "params": {
+                "range": 240,
+                "fireInterval": 2.4
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "bot-1-mesh-1",
+              "type": "model",
+              "name": "spaceship",
+              "asset": "spaceship",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "body": {
+                "kind": "static",
+                "mass": 0,
+                "restitution": 0.55,
+                "friction": 0.2,
+                "collider": {
+                  "shape": "sphere",
+                  "radius": 4.5
+                }
+              }
+            }
+          ],
+          "prefabId": "bot-1",
+          "prefabTitle": "Бот 1"
+        },
+        {
+          "id": "bot-2",
+          "type": "empty",
+          "name": "Бот 1",
+          "position": [
+            -21.129,
+            0,
+            -45.507
+          ],
+          "rotation": [
+            0,
+            20,
+            0
+          ],
+          "scale": 1,
+          "tags": [
+            "bot"
+          ],
+          "scripts": [
+            {
+              "file": "bots/aim-attack.js",
+              "params": {
+                "range": 240,
+                "fireInterval": 2.4
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "bot-1-mesh-2",
+              "type": "model",
+              "name": "spaceship",
+              "asset": "spaceship",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "body": {
+                "kind": "static",
+                "mass": 0,
+                "restitution": 0.55,
+                "friction": 0.2,
+                "collider": {
+                  "shape": "sphere",
+                  "radius": 4.5
+                }
+              }
+            }
+          ],
+          "prefabId": "bot-1",
+          "prefabTitle": "Бот 1"
+        },
+        {
+          "id": "bot-3",
+          "type": "empty",
+          "name": "Бот 1",
+          "position": [
+            39.873,
+            0,
+            35.129
+          ],
+          "rotation": [
+            0,
+            20,
+            0
+          ],
+          "scale": 1,
+          "tags": [
+            "bot"
+          ],
+          "scripts": [
+            {
+              "file": "bots/aim-attack.js",
+              "params": {
+                "range": 240,
+                "fireInterval": 2.4
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "bot-1-mesh-3",
+              "type": "model",
+              "name": "spaceship",
+              "asset": "spaceship",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "body": {
+                "kind": "static",
+                "mass": 0,
+                "restitution": 0.55,
+                "friction": 0.2,
+                "collider": {
+                  "shape": "sphere",
+                  "radius": 4.5
+                }
+              }
+            }
+          ],
+          "prefabId": "bot-1",
+          "prefabTitle": "Бот 1"
+        },
+        {
+          "id": "bot-4",
+          "type": "empty",
+          "name": "Бот 1",
+          "position": [
+            -19.626,
+            0,
+            33.091
+          ],
+          "rotation": [
+            0,
+            20,
+            0
+          ],
+          "scale": 1,
+          "tags": [
+            "bot"
+          ],
+          "scripts": [
+            {
+              "file": "bots/aim-attack.js",
+              "params": {
+                "range": 240,
+                "fireInterval": 2.4
+              }
+            }
+          ],
+          "children": [
+            {
+              "id": "bot-1-mesh-4",
+              "type": "model",
+              "name": "spaceship",
+              "asset": "spaceship",
+              "position": [
+                0,
+                0,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "body": {
+                "kind": "static",
+                "mass": 0,
+                "restitution": 0.55,
+                "friction": 0.2,
+                "collider": {
+                  "shape": "sphere",
+                  "radius": 4.5
+                }
+              }
+            }
+          ],
+          "prefabId": "bot-1",
+          "prefabTitle": "Бот 1"
+        },
+        {
+          "id": "reticle-cursor-1",
+          "type": "reticle",
+          "name": "Курсор",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": 1,
+          "reticle": {
+            "size": 24,
+            "color": "#9fe4ff",
+            "aimColor": "#ffc857"
+          },
+          "scripts": [
+            {
+              "file": "reticles/circle.js",
+              "params": {
+                "spin": 18,
+                "scan": 4.5,
+                "breathe": 2.6
+              }
+            },
+            {
+              "file": "cursor.js",
+              "params": {}
+            }
+          ],
+          "children": []
+        }
+      ],
+      "scripts": [
+        {
+          "file": "first-screen.js",
+          "params": {
+            "background": "#000000",
+            "hudStyle": "hud/style.css",
+            "loadingFile": "hud/loading.html",
+            "loadingScript": "scripts/loading.js",
+            "cursor": "reticle-cursor-1"
+          }
+        }
+      ]
+    }
+  ]
+}

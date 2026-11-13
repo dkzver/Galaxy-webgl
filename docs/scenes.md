@@ -42,10 +42,17 @@ http://localhost:3000/                      # сцена по умолчанию
       "id": "scene",
       "type": "scene",
       "name": "Сцена",
-      "background": "#02030a",
-      "hud": { "style": "hud/style.css" },
-      "loading": { "file": "hud/loading.html", "script": "scripts/loading.js" },
-      "player": { "model": "corinth", "spawn": "spawn-start" },
+      "scripts": [{
+        "file": "first-screen.js",
+        "params": {
+          "background": "#02030a",
+          "hudStyle": "hud/style.css",
+          "loadingFile": "hud/loading.html",
+          "loadingScript": "scripts/loading.js",
+          "cursor": "reticle-cursor-1"
+        }
+      }],
+      "player": { "model": "corinth" },
       "children": []
     }
   ]
@@ -58,15 +65,15 @@ http://localhost:3000/                      # сцена по умолчанию
 | `id` | имя файла без `.scene.json` |
 | `title` | заголовок вкладки и меню |
 | `entities[0].type` | всегда `scene` — корневой объект сцены |
-| `background` | цвет фона кадра; камера может переопределить его через `camera.background` |
-| `hud.style` | один CSS-файл на все HTML-слои HUD (`public/hud/...css`), подключается при загрузке сцены |
-| `loading` | загрузочный экран: `file` — HTML из `public/hud`, `script` — модуль из `public/scripts` |
-| `player.model` | модель корабля игрока: `corinth` или `spaceship` |
-| `player.spawn` | id сущности-точки появления; если пусто — `player.position` |
+| `scripts` | **обязательный** скрипт сцены (`first-screen.js` или свой); в `init` он вызывает `api.scene.build(...)`. Без скрипта или без вызова `build` игра не запускается |
+| `player.model` | legacy-fallback модели игрока, если в сцене нет сущности игрока |
+| `player.spawn` | legacy-ссылка на точку появления; рантайм её не использует |
 | `children` | все объекты сцены: модели, HUD, камеры, триггеры и вложенные группы |
 
-Старый формат без корня тоже читается: если `type: "scene"` нет, движок сам
-оборачивает верхнеуровневые сущности, а `background` и `player` берёт из корня файла.
+Старые поля `background`, `hud.style`, `loading`, `cursor` движок **не читает**:
+он берёт только значения, переданные скриптом в `api.scene.build({ background,
+hudStyle, loadingFile, loadingScript, cursor })`. Нет скрипта или нет вызова
+`build` — игра не стартует и показывает ошибку.
 
 ## Сущность
 
@@ -83,6 +90,8 @@ http://localhost:3000/                      # сцена по умолчанию
 | `spin` | — | постоянное вращение: число (рад/с вокруг Y) или `{ axis, speed }` |
 | `visible` | `true` | `false` — объект и все его дети не участвуют в игре: нет меша, тела, скриптов и HUD-слоя; в редакторе остаётся в дереве |
 | `tags` | `[]` | произвольные метки для скриптов |
+| `hiddenParts` | `[]` | имена объектов или групп модели, которые не рисуются у этого объекта: так скрывают штатное оборудование и ставят своё |
+| `materialId` | `null` | материал из `public/materials`: `shield` рисует прозрачную оболочку с пятном в точке попадания |
 | `scripts` | `[]` | скрипты сущности (см. ниже) |
 | `partScripts` | `{}` | скрипты на отдельные меши модели |
 | `body` | — | физическое тело |
@@ -102,6 +111,43 @@ http://localhost:3000/                      # сцена по умолчанию
 `asset` — имя файла в `public/models` (`<asset>.json` + `<asset>.mesh.bin`).
 `mining` включает добычу: вокруг камня появляется зона радиусом
 `radius × zoneScale`, а луч добычи считается по треугольникам меша.
+
+#### Взаимодействие с мышью
+
+У модели есть блок `mouse` — два независимых флажка. По умолчанию оба выключены:
+
+```json
+{
+  "id": "station", "type": "model", "asset": "orbital-station",
+  "mouse": { "hover": true, "click": false }
+}
+```
+
+В редакторе это секция **«Взаимодействие с мышью»** в инспекторе модели:
+«определять наведение» (`hover`) и «определять клик» (`click`).
+
+Движок в игре пускает луч из камеры через курсор и проверяет его против
+локального AABB модели (`model.bounds`) — поэтому попадание есть даже у
+повёрнутой и масштабированной модели. События получают скрипты сцены через
+`ctx.api.on(type, handler)` и `onEvent`:
+
+| Событие | Когда | Поля |
+|---------|-------|------|
+| `pointer.hover` | курсор вошёл в модель (только при `hover: true`) | `id`, `entity`, `point` |
+| `pointer.leave` | курсор вышел из модели | `id`, `entity` |
+| `pointer.click` | ЛКМ по модели (только при `click: true`) | `id`, `entity`, `point`, `screen` |
+
+```js
+init(ctx) {
+  ctx.api.on('pointer.hover', (event) => {
+    if (event.id === ctx.entity.id) ctx.api.effects?.spark?.('hover', { position: event.point });
+  });
+}
+```
+
+Луч берётся из позиции камеры и направления курсора, так что перекрытие
+невидимыми объектами не учитывается: проверяются только модели с включённым
+флажком. Наведение сбрасывается при паузе, открытом меню и обзоре камеры.
 
 ### `primitive` — примитив
 
@@ -159,6 +205,11 @@ http://localhost:3000/                      # сцена по умолчанию
 [`bots/patrol.js`](../public/scripts/bots/patrol.js) водит его по кругу
 радиусом `bot.radius` со скоростью `bot.speed` рад/с и покачивает на `bot.height`.
 Нос разворачивается по направлению движения через `api.faceDirection`.
+
+Атакующее поведение — скрипт [`bots/aim-attack.js`](../public/scripts/bots/aim-attack.js):
+бот ищет игрока в конусе обзора, наводится и стреляет снарядами из префаба.
+Готовый префаб — `public/prefabs/bot.json`, описание и параметры —
+[`docs/bots.md`](bots.md). Демо-сцена — `?scene=bots-demo`.
 
 Своё поведение — это просто другой скрипт: получает `ctx.entity`, позицию,
 `api.find`, `api.ship`.
@@ -334,6 +385,23 @@ export default {
 
 `partScripts` вешает поведение на отдельный меш модели — имя берётся из
 `groups[].name` в `public/models/<id>.json`.
+
+### Событие попадания снаряда
+
+Когда снаряд попадает в тело, система снарядов отправляет событие
+`projectile.hit`. Его видят и `ctx.api.on`, и хук `onEvent` любого скрипта:
+
+```js
+ctx.api.on('projectile.hit', (event) => {
+  // event.entity — сущность цели (может быть null)
+  // event.body, event.point, event.normal, event.direction,
+  // event.speed, event.projectile — id префаба снаряда
+});
+```
+
+Событие приходит один раз на снаряд, после эффекта `impact` и импульса телу.
+Снаряды кинематические, поэтому событий физики (`impact`) от них нет — только
+это.
 
 Готовые примеры: [`public/scripts/rotator.js`](../public/scripts/rotator.js) —
 вращение, [`public/scripts/doors/door-open.js`](../public/scripts/doors/door-open.js) —
@@ -616,6 +684,12 @@ ctx.api.camera.setPose({
 ищет объект по жёсткому id внутри префаба (`api.find('door-1')`), после
 вставки его не найдёт — обращайтесь к детям через `ctx.entity.children`
 или к самому узлу через `ctx.entity`.
+
+При сохранении префаб чинится: ссылки скриптов (`body`, `muzzleLeft`, `origin`…),
+`hud.target`, `bot.spawn` и `spawnId` на объекты **вне** сохраняемой ветки и на
+несуществующие id очищаются, внутренние остаются и перенумеруются при вставке.
+Поэтому префаб самодостаточен, а внешние привязки вроде «корпус игрока» лучше
+не хранить жёстко — скрипты и так падают обратно на `ctx.api.player`.
 
 ### Редактирование префаба
 

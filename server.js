@@ -40,6 +40,7 @@ const SCENES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'publ
 const PREFABS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'prefabs');
 const EFFECTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'effects');
 const SCRIPTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'scripts');
+const MATERIALS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'materials');
 const MAX_BODY = 32 * 1024 * 1024;
 
 function isLocal(req) {
@@ -167,6 +168,34 @@ async function apiAssets(res) {
   return send(res, 200, JSON.stringify({ assets }), { 'Content-Type': 'application/json; charset=utf-8' });
 }
 
+/** Список моделей с именем из манифеста — для таблицы управления. */
+async function apiModels(res) {
+  const files = await fs.promises.readdir(MODELS_DIR).catch(() => []);
+  const models = [];
+
+  for (const file of files.sort()) {
+    if (!file.endsWith('.json') || file.endsWith('.physics.json')) continue;
+
+    const id = file.slice(0, -'.json'.length);
+    let name = id;
+    let groups = 0;
+    let bytes = 0;
+
+    try {
+      const manifest = JSON.parse(await fs.promises.readFile(path.join(MODELS_DIR, file), 'utf8'));
+      if (typeof manifest.name === 'string' && manifest.name.trim()) name = manifest.name.trim();
+      groups = Array.isArray(manifest.groups) ? manifest.groups.length : 0;
+      bytes = Number(manifest.bytes) || 0;
+    } catch {
+      // битый манифест показываем хотя бы по id
+    }
+
+    models.push({ id, name, groups, bytes });
+  }
+
+  return send(res, 200, JSON.stringify({ models }), { 'Content-Type': 'application/json; charset=utf-8' });
+}
+
 /* ---------------------------- Модели и их физика -------------------------- */
 
 const MODELS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public', 'models');
@@ -280,6 +309,153 @@ async function saveModelPhysics(res, id, body) {
   );
 
   return send(res, 200, JSON.stringify({ saved: `${id}.physics.json`, physics: result }), {
+    'Content-Type': 'application/json; charset=utf-8'
+  });
+}
+
+/** Где модель уже используется: сцены и префабы с ссылкой asset. */
+async function modelUsages(id) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`"asset"\\s*:\\s*"${escaped}"`);
+  const sources = [
+    { dir: SCENES_DIR, suffix: '.scene.json', kind: 'сцена' },
+    { dir: PREFABS_DIR, suffix: '.json', kind: 'префаб' }
+  ];
+  const usages = [];
+
+  for (const source of sources) {
+    const files = await fs.promises.readdir(source.dir).catch(() => []);
+
+    for (const file of files) {
+      if (!file.endsWith(source.suffix)) continue;
+
+      const text = await fs.promises.readFile(path.join(source.dir, file), 'utf8').catch(() => '');
+      if (!pattern.test(text)) continue;
+
+      usages.push(`${source.kind}: ${file.slice(0, -source.suffix.length)}`);
+    }
+  }
+
+  return usages;
+}
+
+/** Переименовать модель: меняется только имя в манифесте, id остаётся прежним. */
+async function renameModel(res, id, body) {
+  const name = typeof body?.name === 'string' ? body.name.trim().slice(0, 80) : '';
+  if (!name) return send(res, 400, 'нужно непустое имя модели');
+
+  const file = path.join(MODELS_DIR, `${id}.json`);
+  let manifest;
+
+  try {
+    manifest = JSON.parse(await fs.promises.readFile(file, 'utf8'));
+  } catch {
+    return send(res, 404, 'Модель не найдена');
+  }
+
+  manifest.name = name;
+  await fs.promises.writeFile(file, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  return send(res, 200, JSON.stringify({ saved: id, name }), {
+    'Content-Type': 'application/json; charset=utf-8'
+  });
+}
+
+/** Удалить модель окончательно: манифест, бинарник и физика. */
+async function deleteModel(res, id, body) {
+  const usages = await modelUsages(id);
+
+  // Сначала предупреждаем о ссылках; повторный запрос с force удаляет
+  if (usages.length && !body?.force) {
+    return send(res, 409, JSON.stringify({ error: 'модель используется', usages }), {
+      'Content-Type': 'application/json; charset=utf-8'
+    });
+  }
+
+  let removed = 0;
+
+  for (const suffix of ['.json', '.mesh.bin', '.physics.json']) {
+    try {
+      await fs.promises.unlink(path.join(MODELS_DIR, `${id}${suffix}`));
+      removed += 1;
+    } catch {
+      // файла может не быть — это нормально
+    }
+  }
+
+  if (!removed) return send(res, 404, 'Модель не найдена');
+
+  return send(res, 200, JSON.stringify({ deleted: id, usages }), {
+    'Content-Type': 'application/json; charset=utf-8'
+  });
+}
+
+/* ------------------------------- Материалы ------------------------------- */
+
+async function apiMaterials(res) {
+  const files = await fs.promises.readdir(MATERIALS_DIR).catch(() => []);
+  const materials = [];
+
+  for (const file of files) {
+    if (!file.endsWith('.material.json')) continue;
+
+    const id = file.slice(0, -'.material.json'.length);
+    if (!safeId(id)) continue;
+
+    try {
+      const data = JSON.parse(await fs.promises.readFile(path.join(MATERIALS_DIR, file), 'utf8'));
+      materials.push({
+        id,
+        title: typeof data.title === 'string' && data.title ? data.title : id,
+        shader: typeof data.shader === 'string' ? data.shader : 'mesh',
+        blend: typeof data.blend === 'string' ? data.blend : 'opaque',
+        depthWrite: data.depthWrite !== false,
+        params: data.params && typeof data.params === 'object' ? data.params : {},
+        uniforms: data.uniforms && typeof data.uniforms === 'object' ? data.uniforms : {}
+      });
+    } catch {
+      materials.push({ id, title: `${id} (ошибка JSON)`, shader: 'mesh', blend: 'opaque', uniforms: {} });
+    }
+  }
+
+  materials.sort((a, b) => a.id.localeCompare(b.id));
+  return send(res, 200, JSON.stringify({ materials }), { 'Content-Type': 'application/json; charset=utf-8' });
+}
+
+async function apiMaterial(res, id) {
+  try {
+    const text = await fs.promises.readFile(path.join(MATERIALS_DIR, `${id}.material.json`), 'utf8');
+    return send(res, 200, text, { 'Content-Type': 'application/json; charset=utf-8' });
+  } catch {
+    return send(res, 404, 'Материал не найден');
+  }
+}
+
+async function saveMaterial(res, id, body) {
+  let definition;
+
+  try {
+    const parsed = JSON.parse(body || '{}');
+    definition = parsed.material && typeof parsed.material === 'object' ? parsed.material : parsed;
+  } catch {
+    return send(res, 400, 'материал: ожидался JSON');
+  }
+
+  if (!definition || typeof definition !== 'object' || Array.isArray(definition)) {
+    return send(res, 400, 'описание материала должно быть объектом');
+  }
+
+  definition.id = id;
+  if (typeof definition.title !== 'string' || !definition.title.trim()) definition.title = id;
+
+  await fs.promises.mkdir(MATERIALS_DIR, { recursive: true });
+  await fs.promises.writeFile(
+    path.join(MATERIALS_DIR, `${id}.material.json`),
+    `${JSON.stringify(definition, null, 2)}\n`,
+    'utf8'
+  );
+
+  return send(res, 200, JSON.stringify({ saved: `${id}.material.json` }), {
     'Content-Type': 'application/json; charset=utf-8'
   });
 }
@@ -426,8 +602,10 @@ async function handleApi(req, res, urlPath) {
   if (req.method === 'GET' && urlPath === '/api/scenes') return apiScenes(res);
   if (req.method === 'GET' && urlPath === '/api/scripts') return apiScripts(res);
   if (req.method === 'GET' && urlPath === '/api/assets') return apiAssets(res);
+  if (req.method === 'GET' && urlPath === '/api/models') return apiModels(res);
   if (req.method === 'GET' && urlPath === '/api/prefabs') return apiPrefabs(res);
   if (req.method === 'GET' && urlPath === '/api/effects') return apiEffects(res);
+  if (req.method === 'GET' && urlPath === '/api/materials') return apiMaterials(res);
   if (req.method === 'GET' && urlPath === '/api/hud') return apiHudFiles(res);
 
   // Эффекты: JSON-описания в public/effects, доступные редактору
@@ -437,6 +615,20 @@ async function handleApi(req, res, urlPath) {
     if (req.method === 'POST') {
       try {
         return await saveEffect(res, effect[1], await readBody(req));
+      } catch (err) {
+        return send(res, 400, err.message);
+      }
+    }
+  }
+
+  // Материалы: описания в public/materials, общие для движка и редактора
+  const material = urlPath.match(/^\/api\/material\/([^/]+)$/);
+  if (material && safeId(material[1])) {
+    if (req.method === 'GET') return apiMaterial(res, material[1]);
+
+    if (req.method === 'POST') {
+      try {
+        return await saveMaterial(res, material[1], await readBody(req));
       } catch (err) {
         return send(res, 400, err.message);
       }
@@ -453,8 +645,27 @@ async function handleApi(req, res, urlPath) {
     }
   }
 
+  const modelRename = urlPath.match(/^\/api\/model\/([^/]+)\/rename$/);
+  if (modelRename && safeId(modelRename[1]) && req.method === 'POST') {
+    try {
+      return await renameModel(res, modelRename[1], JSON.parse(await readBody(req) || '{}'));
+    } catch (err) {
+      return send(res, 400, err.message);
+    }
+  }
+
   const model = urlPath.match(/^\/api\/model\/([^/]+)$/);
-  if (model && safeId(model[1]) && req.method === 'GET') return apiModel(res, model[1]);
+  if (model && safeId(model[1])) {
+    if (req.method === 'GET') return apiModel(res, model[1]);
+
+    if (req.method === 'DELETE') {
+      try {
+        return await deleteModel(res, model[1], JSON.parse(await readBody(req) || '{}'));
+      } catch (err) {
+        return send(res, 400, err.message);
+      }
+    }
+  }
 
   // Префабы: сохранённая ветка сцены, которую можно вставить в любую сцену
   const prefab = urlPath.match(/^\/api\/prefab\/([^/]+)$/);

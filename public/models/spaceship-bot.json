@@ -1,0 +1,31 @@
+{
+  "name": "spaceship-bot",
+  "length": 9,
+  "bounds": {
+    "min": [
+      -0.9649,
+      -1.3029,
+      -4.5
+    ],
+    "max": [
+      0.9649,
+      1.3029,
+      4.5
+    ]
+  },
+  "radius": 4.6538,
+  "bytes": 1248532,
+  "groups": [
+    {
+      "name": "hull",
+      "texture": "spaceship",
+      "color": "#c9d2e0",
+      "vertexCount": 36605,
+      "indexCount": 38586,
+      "positionByteOffset": 0,
+      "normalByteOffset": 439260,
+      "uvByteOffset": 878520,
+      "indexByteOffset": 1171360
+    }
+  ]
+}
