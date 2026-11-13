@@ -188,6 +188,8 @@ API для игрового запуска должен позволять за�
 - Перенести auth/hangar/menu UI в root React этой страницы; не переносить Three.js `SpaceScene`.
 - Сохранить существующий standalone dev режим React только как временный/опциональный путь до завершения миграции.
 
+Текущая реализация: движок публикует lifecycle bridge, а `react-host.js` загружает React entry и CSS по Vite manifest из `/ui/`. Для локальной проверки соберите Galaxy client (`npm run build` в `C:\projects\Galaxy\client`), затем из GalaxyDemo выполните `npm run sync:engine-ui -- C:\projects\Galaxy\client\dist`. Интегрированный клиент ждёт готовности сцены, показывает auth/hangar поверх canvas и не загружает React Three.js-сцену. Standalone-запуск клиента с `#root` сохраняется. Запуск игровой сцены и выбор модели через bridge ещё не подключены.
+
 **Готово, если:** React UI и игра работают в одном документе и WebGL context; клиентский production build выдаёт статику; React может запросить engine readiness и сцену через bridge.
 
 ### Этап 2. Свести загрузку к одному экрану

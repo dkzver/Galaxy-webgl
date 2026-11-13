@@ -17,9 +17,11 @@ import { pushWireBoxCorners, pushWireSphere } from './wire.js';
 import { shieldVS, shieldFS } from './render/shield-shader.js';
 import { normalizeMaterial } from './materials.js';
 import { createEngineBridge } from './app/engine-bridge.js';
+import { mountReactApp } from './app/react-host.js';
 
 const engineBridge = createEngineBridge();
 window.GalaxyEngine = engineBridge.api;
+void mountReactApp();
 
 const canvas = document.getElementById('scene');
 const overlay = document.getElementById('overlay');
