@@ -49,6 +49,8 @@ uniform float uFresnel;
 uniform float uHitRadius;
 uniform float uHexScale;
 uniform float uPatchLife;
+uniform vec3 uShieldCenter;
+uniform vec3 uShieldSize;
 uniform vec4 uHits[4];
 
 float hash21(vec2 p) {
@@ -121,25 +123,35 @@ void main() {
     float age = hit.w;
 
     // Волна непрозрачности от точки попадания: фронт добегает до края
-    // пятна втрое быстрее жизни пятна (patchLife / 3). Позади фронта
-    // непрозрачность плавно спадает от центра к краю.
+    // пятна втрое быстрее жизни пятна (patchLife / 3). Сразу после
+    // появления пятно начинает плавно терять непрозрачность — без
+    // «фонарика»: яркость спадает всю жизнь пятна.
     float front = min(1.0, age / max(0.02, uPatchLife / 3.0));
-    float fade = 1.0 - smoothstep(uPatchLife * 0.55, uPatchLife, age);
-    if (fade <= 0.0) continue;
+    float appear = smoothstep(0.0, max(0.02, uPatchLife * 0.12), age);
+    float fade = 1.0 - smoothstep(0.0, uPatchLife, age);
+    float envelope = appear * fade;
+    if (envelope <= 0.0) continue;
 
     vec2 hitUv;
-    if (weights.x >= weights.y && weights.x >= weights.z) hitUv = hit.zy;
-    else if (weights.y >= weights.z) hitUv = hit.xz;
-    else hitUv = hit.xy;
+    // Коллайдер щита — сфера, а видимый меш — эллипсоид. Проецируем
+    // точку попадания на поверхность меша по лучу от центра.
+    vec3 rel = hit.xyz - uShieldCenter;
+    vec3 safeSize = max(uShieldSize, vec3(0.001));
+    float ell = max(0.001, sqrt(dot(rel / safeSize, rel / safeSize)));
+    vec3 surface = uShieldCenter + rel / ell;
+
+    if (weights.x >= weights.y && weights.x >= weights.z) hitUv = surface.zy;
+    else if (weights.y >= weights.z) hitUv = surface.xz;
+    else hitUv = surface.xy;
     hitUv *= uHexScale;
 
     // Нормированное расстояние в гекс-метрике: 0 — центр, 1 — край пятна.
     float distanceToHit = hexEdge(uv - hitUv) / radius;
     float reveal = 1.0 - smoothstep(front, front + 0.25, distanceToHit);
     float gradient = 1.0 - smoothstep(0.0, 1.0, distanceToHit);
-    float weight = reveal * gradient * fade;
+    float weight = reveal * gradient * envelope;
 
-    float core = (1.0 - smoothstep(0.0, 0.18, distanceToHit)) * fade;
+    float core = (1.0 - smoothstep(0.0, 0.22, distanceToHit)) * envelope;
 
     patch = max(patch, weight);
     patchEdge = max(patchEdge, weight * hexEdgeGlowValue);
@@ -151,7 +163,7 @@ void main() {
   if (patch <= 0.001) discard;
 
   float skin = shell * 0.8 + patchEdge * 0.5 + patch * 0.42 + patchId * 0.05;
-  vec3 color = uColor * skin * patch * 1.8;
+  vec3 color = uColor * skin * patch * 1.4;
   color += uHitColor * patchCore * 0.35;
 
   gl_FragColor = vec4(color, 1.0);

@@ -7,6 +7,8 @@
 //
 // raw.visible не трогаем: при visible: false движок не построит ни меш, ни тело.
 
+import { M4 } from '../../js/math.js';
+
 function setVisuals(entity, visible) {
   if (!entity) return;
   if (entity.model) entity.visible = visible;
@@ -26,7 +28,13 @@ export default {
       ctx.state.unsubscribe = ctx.api.on?.('projectile.hit', (event) => {
         if (!event?.entity || event.entity.id !== ctx.entity.id) return;
 
-        ctx.state.hits.unshift({ position: event.point.slice(), age: 0 });
+        // Точка удара приходит в мире; храним её в локальных координатах щита,
+        // иначе при движении корабля пятно «съезжает» с места попадания.
+        const point = Array.isArray(event.point) ? event.point.slice(0, 3) : [0, 0, 0];
+        const matrix = ctx.entity.matrix;
+        const local = matrix ? M4.transformPoint(M4.invert(matrix), point) : point;
+
+        ctx.state.hits.unshift({ position: local, age: 0 });
         if (ctx.state.hits.length > 4) ctx.state.hits.length = 4;
       });
 

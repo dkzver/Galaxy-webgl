@@ -2681,10 +2681,26 @@ function render(time) {
         gl.uniform1f(shieldLoc.u.uHexScale, Number(uniforms.hexScale) || 6);
         gl.uniform1f(shieldLoc.u.uPatchLife, Number(uniforms.patchLife) || 0.35);
 
-        // Точки попадания из мира → в локальные координаты меша щита:
-        // шейдер строит вокруг них локальное гексагональное пятно.
-        const toShieldLocal = M4.invert(item.matrix);
+        const bounds = item.model?.bounds;
+        const shieldCenter = bounds
+          ? [
+            (bounds.min[0] + bounds.max[0]) / 2,
+            (bounds.min[1] + bounds.max[1]) / 2,
+            (bounds.min[2] + bounds.max[2]) / 2
+          ]
+          : [0, 0, 0];
+        const shieldSize = bounds
+          ? [
+            (bounds.max[0] - bounds.min[0]) / 2,
+            (bounds.max[1] - bounds.min[1]) / 2,
+            (bounds.max[2] - bounds.min[2]) / 2
+          ]
+          : [1, 1, 1];
+        gl.uniform3fv(shieldLoc.u.uShieldCenter, shieldCenter);
+        gl.uniform3fv(shieldLoc.u.uShieldSize, shieldSize);
 
+        // Точки попадания уже в локальных координатах меша щита:
+        // их перевёл shield.js в момент удара.
         hitData.fill(0);
         for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;
 
@@ -2693,7 +2709,7 @@ function render(time) {
           const hit = hits[i];
           if (!hit?.position) continue;
 
-          const local = M4.transformPoint(toShieldLocal, hit.position);
+          const local = hit.position;
           hitData[i * 4] = local[0];
           hitData[i * 4 + 1] = local[1];
           hitData[i * 4 + 2] = local[2];

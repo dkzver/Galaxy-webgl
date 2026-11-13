@@ -1805,16 +1805,16 @@ inspectorEl.addEventListener('click', (event) => {
     const bounds = entity?.model?.bounds;
 
     if (bounds) {
-      // Точка на правом борту оболочки — в мире, как ждёт шейдер
+      // Точка на правом борту оболочки — в локальных координатах меша,
+      // как их хранит shield.js после попадания.
       const local = [
         (bounds.min[0] + bounds.max[0]) / 2 + (bounds.max[0] - bounds.min[0]) * 0.45,
         (bounds.min[1] + bounds.max[1]) / 2,
         (bounds.min[2] + bounds.max[2]) / 2
       ];
-      const position = M4.transformPoint(entity.matrix, local);
 
       entity.shieldHits = entity.shieldHits || [];
-      entity.shieldHits.unshift({ position, age: 0 });
+      entity.shieldHits.unshift({ position: local, age: 0 });
       if (entity.shieldHits.length > 4) entity.shieldHits.length = 4;
       setStatus('Тест попадания: пятно на щите');
     }
@@ -2447,18 +2447,34 @@ function render() {
       gl.uniform1f(shieldLoc.u.uHexScale, Number(uniforms.hexScale) || 6);
       gl.uniform1f(shieldLoc.u.uPatchLife, Number(uniforms.patchLife) || 0.35);
 
+      const bounds = entity.model?.bounds;
+      const shieldCenter = bounds
+        ? [
+          (bounds.min[0] + bounds.max[0]) / 2,
+          (bounds.min[1] + bounds.max[1]) / 2,
+          (bounds.min[2] + bounds.max[2]) / 2
+        ]
+        : [0, 0, 0];
+      const shieldSize = bounds
+        ? [
+          (bounds.max[0] - bounds.min[0]) / 2,
+          (bounds.max[1] - bounds.min[1]) / 2,
+          (bounds.max[2] - bounds.min[2]) / 2
+        ]
+        : [1, 1, 1];
+      gl.uniform3fv(shieldLoc.u.uShieldCenter, shieldCenter);
+      gl.uniform3fv(shieldLoc.u.uShieldSize, shieldSize);
+
       hitData.fill(0);
       for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;
 
-      const toShieldLocal = M4.invert(entity.matrix);
       const hits = entity.shieldHits || [];
       for (let i = 0; i < Math.min(4, hits.length); i++) {
         const hit = hits[i];
         if (!hit?.position) continue;
-        const local = M4.transformPoint(toShieldLocal, hit.position);
-        hitData[i * 4] = local[0];
-        hitData[i * 4 + 1] = local[1];
-        hitData[i * 4 + 2] = local[2];
+        hitData[i * 4] = hit.position[0];
+        hitData[i * 4 + 1] = hit.position[1];
+        hitData[i * 4 + 2] = hit.position[2];
         hitData[i * 4 + 3] = Math.max(0, Number(hit.age) || 0);
       }
       gl.uniform4fv(shieldLoc.u.uHits, hitData);

@@ -183,6 +183,8 @@ function drawMeshSphere() {
     gl.uniform1f(shieldLoc.u.uHitRadius, Number(state.uniforms.hitRadius) || 0.9);
     gl.uniform1f(shieldLoc.u.uHexScale, Number(state.uniforms.hexScale) || 6);
     gl.uniform1f(shieldLoc.u.uPatchLife, Number(state.uniforms.patchLife) || 0.35);
+    gl.uniform3fv(shieldLoc.u.uShieldCenter, [0, 0, 0]);
+    gl.uniform3fv(shieldLoc.u.uShieldSize, [2.4, 2.4, 2.4]);
 
     const hitData = new Float32Array(16);
     for (let i = 0; i < 4; i++) hitData[i * 4 + 3] = -1;

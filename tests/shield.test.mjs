@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import shield from '../public/scripts/ship/shield.js';
+import { M4 } from '../public/js/math.js';
 
 function makeCtx(entity) {
   const handlers = new Map();
@@ -85,6 +86,25 @@ test('с материалом меш не скрывается, а попада�
 
   for (let i = 0; i < 30; i++) shield.update(ctx, 0.1);
   assert.equal(entity.shieldHits.length, 0, 'старые попадания удаляются');
+});
+
+test('попадание хранится в локальных координатах щита', () => {
+  const entity = {
+    id: 'shield-1',
+    type: 'model',
+    visible: true,
+    raw: { materialId: 'shield' },
+    model: { parts: [] },
+    matrix: M4.translation(10, 0, -5),
+    children: []
+  };
+
+  const ctx = makeCtx(entity);
+  shield.init(ctx);
+
+  ctx.api.emit({ type: 'projectile.hit', entity, point: [11, 2, -3] });
+
+  assert.deepEqual(entity.shieldHits[0].position, [1, 2, 2], 'мировая точка переведена в локальную');
 });
 
 test('одновременно хранится не больше четырёх попаданий', () => {
